@@ -1,0 +1,17 @@
+# Extracted game material (copyrighted, regenerable from the Steam install)
+/assets/
+/code/
+/raw_data/
+/live_prefab.txt
+
+# Build outputs and generated data
+port3ds/build/
+port3ds/build_data/
+port3ds/*.3dsx
+port3ds/*.elf
+port3ds/*.smdh
+port3ds/tools/.venv/
+port3ds/tools/cs2lua/bin/
+port3ds/tools/cs2lua/obj/
+__pycache__/
+*.log
