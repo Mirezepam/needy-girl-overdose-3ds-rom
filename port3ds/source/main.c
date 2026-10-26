@@ -2,6 +2,7 @@
 // The C side owns hardware (two screens, touch, audio, video); the game itself runs in Lua
 // (sdmc:/3ds/needy3ds/lua/main.lua), mostly transpiled from the original C# event scripts.
 #include "engine.h"
+#include <sys/stat.h>
 #include "lauxlib.h"
 #include "lua.h"
 #include "lualib.h"
@@ -57,11 +58,14 @@ static bool boot_lua(void) {
     luaL_requiref(L, "sys", luaopen_sys, 1);
     lua_pop(L, 1);
     lua_getglobal(L, "package");
-    lua_pushstring(L, DATA_DIR "lua/?.lua;" DATA_DIR "lua/?/init.lua;" DATA_DIR "?.lua");
+    char path[256];
+    snprintf(path, sizeof(path), "%slua/?.lua;%slua/?/init.lua;%s?.lua", data_dir, data_dir, data_dir);
+    lua_pushstring(L, path);
     lua_setfield(L, -2, "path");
     lua_pop(L, 1);
     lua_pushcfunction(L, traceback);
-    if (luaL_loadfile(L, DATA_DIR "lua/main.lua") != LUA_OK || lua_pcall(L, 0, 0, -2) != LUA_OK) {
+    snprintf(path, sizeof(path), "%slua/main.lua", data_dir);
+    if (luaL_loadfile(L, path) != LUA_OK || lua_pcall(L, 0, 0, -2) != LUA_OK) {
         set_error(lua_tostring(L, -1));
         return false;
     }
@@ -69,10 +73,23 @@ static bool boot_lua(void) {
     return call_game("init", 0);
 }
 
+const char *data_dir = DATA_DIR;
+
 int main(void) {
     osSetSpeedupEnable(true);  // New 3DS: 804 MHz + L2 cache; no-op on Old 3DS
     if (!gfx_init()) return 1;
-    bool fontOk = font_load(DATA_DIR "font/main.ntx", DATA_DIR "font/main.bin");
+    // a test CIA can carry the game data in its RomFS; the .3dsx / normal CIA read the SD
+    bool romfs = R_SUCCEEDED(romfsInit());
+    if (romfs) {
+        FILE *t = fopen("romfs:/font/main.bin", "rb");
+        if (t) { fclose(t); data_dir = "romfs:/"; }
+    }
+    mkdir("sdmc:/3ds", 0777);
+    mkdir(DATA_DIR, 0777);
+    char fnt[96], fbin[96];
+    snprintf(fnt, sizeof(fnt), "%sfont/main.ntx", data_dir);
+    snprintf(fbin, sizeof(fbin), "%sfont/main.bin", data_dir);
+    bool fontOk = font_load(fnt, fbin);
     audio_init();
     if (!fontOk) {
         consoleInit(GFX_BOTTOM, NULL);
@@ -143,5 +160,6 @@ int main(void) {
     lua_close(L);
     audio_exit();
     gfx_exit();
+    if (romfs) romfsExit();
     return 0;
 }

@@ -186,7 +186,7 @@ int luaopen_sys(lua_State *L) {
         {NULL, NULL},
     };
     luaL_newlib(L, fns);
-    lua_pushstring(L, DATA_DIR);
+    lua_pushstring(L, data_dir);
     lua_setfield(L, -2, "data");
     return 1;
 }

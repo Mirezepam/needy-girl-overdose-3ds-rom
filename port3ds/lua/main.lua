@@ -1,7 +1,8 @@
 -- NEEDY GIRL OVERDOSE 3DS: Lua entry point (called by source/main.c).
 local core = require("runtime.core")
-core.logfile = io.open(sys.data .. "log.txt", "w")
-LOG("boot", _VERSION, sys.is_new3ds() and "New3DS" or "Old3DS")
+-- the log always goes to the SD (the data may be read from the read-only RomFS)
+core.logfile = io.open("sdmc:/3ds/needy3ds/log.txt", "w")
+LOG("boot", _VERSION, sys.is_new3ds() and "New3DS" or "Old3DS", "data:", sys.data)
 
 core.load_index(require("gen._index"))
 local enums = require("enums")

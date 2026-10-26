@@ -3,7 +3,9 @@
 #include <citro2d.h>
 #include <stdbool.h>
 
-#define DATA_DIR "sdmc:/3ds/needy3ds/"
+#define DATA_DIR "sdmc:/3ds/needy3ds/"   // saves, logs, settings (and the game data, unless in RomFS)
+// where the game data is read from: DATA_DIR, or "romfs:/" when the CIA carries it in its RomFS
+extern const char *data_dir;
 #define TOP_W 400
 #define BOT_W 320
 #define SCR_H 240
