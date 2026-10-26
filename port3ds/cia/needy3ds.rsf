@@ -27,6 +27,12 @@ AccessControlInfo:
     - DirectSdmc
     - DirectSdmcWrite
   IoAccessControl:
+  # mapped by the Homebrew Launcher for a .3dsx; a CIA has to ask for them or ndspInit faults
+  # writing to DSP memory on real hardware (emulators do not check)
+  IORegisterMapping:
+    - 1ff00000-1ff7ffff   # DSP memory
+  MemoryMapping:
+    - 1f000000-1f5fffff:r # VRAM
   MemoryType                    : Application
   # Old 3DS: 64 MB app memory; New 3DS: 124 MB (textures, audio and video buffers)
   SystemMode                    : 64MB

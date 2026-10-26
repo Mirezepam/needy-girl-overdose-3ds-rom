@@ -401,6 +401,14 @@ local function bot()
       if os.getenv("NGO_SEED") then math.randomseed(tonumber(os.getenv("NGO_SEED"))) end
       require("ui.main").start_game({ lang = os.getenv("NGO_LANG") or "es", slot = 1, saveFile = os.getenv("NGO_CONT") })
       started = true
+      if os.getenv("NGO_TRACECLEAR") == "1" then
+        local f = EventManager.ClearEventQueue
+        EventManager.ClearEventQueue = function(self, ...)
+          print("  [clear] day", StatusManager.statuses and StatusManager:GetStatus("DayIndex"), "eventing", self.isEventing,
+                (debug.traceback("", 2):gsub("%s+", " "):sub(1, 500)))
+          return f(self, ...)
+        end
+      end
       if os.getenv("NGO_DEBUGSC") == "1" then
         local f0 = EventManager.SetShortcutState
         EventManager.SetShortcutState = function(self, on, ...)
