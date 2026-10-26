@@ -47,6 +47,12 @@ for app, prefab in APPS.items():
             t = u.get("m_text")
             if t and t.strip():
                 k = byval.get(norm(t))
+                if not k:
+                    # some prefab texts are the master text repeated or with extra lines
+                    # (Ideon_wiki_res2 twice): match the longest master text they contain
+                    nt = norm(t)
+                    cands = [(len(v), key) for v, key in byval.items() if len(v) >= 8 and v in nt]
+                    k = max(cands)[1] if cands else None
                 c = col(u.get("fontColor"))
                 s = u.get("m_fontSize") or 20
                 if k:

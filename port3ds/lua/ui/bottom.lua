@@ -188,6 +188,16 @@ local function drug_art(d, cx, cy, size, alpha)
   end
 end
 
+-- Japanese drug names have no spaces: a name too wide for its column breaks after の or before
+-- its dose (魔法の / けむり, ハイポロン / cp, ディパス錠 / １mg) instead of at any character
+local function pill_label(s, maxw)
+  if G.measure(s) <= maxw or s:find(" ") then return s end
+  local a, b = s:match("^(.-の)(.+)$")
+  if not a then a, b = s:match("^(.-)(１%w+)$") end   -- full-width 1 + "mg"
+  if not a then a, b = s:match("^(.-)(%w+)$") end
+  return a and a ~= "" and (a .. "\n" .. b) or s
+end
+
 local function draw_pills(x, y, w, h, enabled, visible)
   local avail = {}
   for _, it in ipairs(visible) do avail[it.a] = it.s end
@@ -223,7 +233,8 @@ local function draw_pills(x, y, w, h, enabled, visible)
     if pressed or foc then M.drug_shown = d.key; G.rect(bx + 2, y + 4, cw - 4, h - 8, 0x4d22cf18) end
     drug_art(d, bx + cw / 2, y + h / 2 - 10, math.min(cw - 8, 96), enabled and 1 or 0.4)
     local name = NgoEx.yakujo(d.key, "namae", lang())
-    G.text_center(((name ~= NULL and name or d.key):gsub("%s*%(.*", ""):gsub("%s*（.*", "")), bx + cw / 2, y + h - 30, c.ink, 1, cw - 6)
+    local label = ((name ~= NULL and name or d.key):gsub("%s*%(.*", ""):gsub("%s*（.*", ""))
+    G.text_center(pill_label(label, cw - 6), bx + cw / 2, y + h - 30, c.ink, 1, cw - 6)
     if foc then T.focus_ring(bx + 2, y + 4, cw - 4, h - 8) end
     if enabled and (I.tapped(bx, y + 4, cw, h - 8) or I.activated(id)) then
       if T.click_se then T.click_se() end
