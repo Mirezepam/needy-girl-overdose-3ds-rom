@@ -14,12 +14,15 @@ local W = 290
 
 local function lang() return Settings.CurrentLanguage.Value end
 
+local opened_t, opened_win = 0, nil
 local function entry(d)
   local e = cache[d]
   if e then return e end
   local dr = NEW("TweetDrawable", 1, d)
   e = { text = NgoEx.GetTweetBody(dr, lang()), fav = d.FavNumber or 0, rt = d.RtNumber or 0, omote = d.IsOmote, replies = {},
         day = d.day }
+  -- PoketterCell2D.Show unfolds and fades new tweets in (not the ones already there on open)
+  if core.now() - opened_t > 0.4 then e.born = core.now() end
   if e.text == NULL then e.text = "" end
   local img = dr.ImageId
   if type(img) == "string" and G.exists(img) then e.image = img end
@@ -111,6 +114,7 @@ local function draw_tweet(e, x, y, sel)
 end
 
 function M.draw(win, x0, y0, w0, h0)
+  if opened_win ~= win then opened_win, opened_t = win, core.now() end
   local title = win.app == "Uratter" and "Uratter" or "Poketter"
   local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, title, "icon_taskbar_poketter")
   if win.closeable and T.close("pk_close") then
@@ -157,7 +161,15 @@ function M.draw(win, x0, y0, w0, h0)
   local yy = y + top - sy
   for i, it in ipairs(list) do
     if yy + it.e.h > y and yy < y + h then
-      draw_tweet(it.e, x + 4, yy, selected == it.d)
+      local p = it.e.born and (core.now() - it.e.born) / 0.5 or 1
+      if p < 1 then
+        local k = 1 - (1 - p) ^ 2
+        G.push(0, -(1 - k) * 10, 1, k)
+        draw_tweet(it.e, x + 4, yy, selected == it.d)
+        G.pop()
+      else
+        draw_tweet(it.e, x + 4, yy, selected == it.d)
+      end
       local pick = I.tapped(x + 4, math.max(yy, y + top), W, it.e.h)
       if I.focusable("tw" .. i, x + 4, yy, W, it.e.h) then
         T.focus_ring(x + 4, yy, W, it.e.h - 2)

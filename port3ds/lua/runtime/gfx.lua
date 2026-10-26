@@ -13,6 +13,37 @@ G.W, G.H = 400, 240
 
 function G.set_budget(bytes) BUDGET = bytes end
 
+-- ------------------------------------------------------------------ transform
+-- window animations (open, fade in): everything drawn through G maps x -> ox + x * s,
+-- y -> oy + y * s and has its alpha multiplied by a. Layout stays in local coordinates.
+local ID = { ox = 0, oy = 0, s = 1, a = 1 }
+local XF, xstack = ID, {}
+local function moved() return XF ~= ID and (XF.s ~= 1 or XF.ox ~= 0 or XF.oy ~= 0) end
+function G.push(ox, oy, s, a)
+  xstack[#xstack + 1] = XF
+  XF = { ox = XF.ox + (ox or 0) * XF.s, oy = XF.oy + (oy or 0) * XF.s, s = XF.s * (s or 1), a = XF.a * (a or 1) }
+end
+-- scale s around (cx, cy), alpha a
+function G.push_at(cx, cy, s, a) G.push(cx * (1 - s), cy * (1 - s), s, a) end
+function G.pop() XF = table.remove(xstack) or ID end
+local function acol(c)
+  if XF.a >= 1 then return c end
+  return (c & 0xffffff00) | math.floor((c & 0xff) * math.max(0, XF.a))
+end
+local function sdraw(id, sx, sy, sw, sh, dx, dy, scx, scy, alpha, tint, blend, angle)
+  if moved() then dx, dy, scx, scy = XF.ox + dx * XF.s, XF.oy + dy * XF.s, scx * XF.s, scy * XF.s end
+  sys.draw(id, sx, sy, sw, sh, dx, dy, scx, scy, alpha * XF.a, tint, blend, angle)
+end
+local function srect(x, y, w, h, c)
+  if moved() then x, y, w, h = XF.ox + x * XF.s, XF.oy + y * XF.s, w * XF.s, h * XF.s end
+  sys.rect(x, y, w, h, acol(c or 0xffffffff))
+end
+local function stext(s, x, y, c, scale, wrap, maxLines)
+  if not moved() then return sys.text(s, x, y, acol(c), scale, wrap, maxLines) end
+  local h, w = sys.text(s, XF.ox + x * XF.s, XF.oy + y * XF.s, acol(c), scale * XF.s, wrap * XF.s, maxLines)
+  return h / XF.s, w / XF.s
+end
+
 -- frees least recently used pages until `need` bytes fit in the budget and in the linear heap
 -- (audio buffers and cached effects share that heap, so the budget alone is not enough)
 local RESERVE = 1536 * 1024
@@ -77,7 +108,7 @@ function G.draw(name, x, y, o)
   if o.flip then sx = -sx end   -- mirrored: drawn to the left of x
   x = x - (o.ax or 0) * s[9] * sx
   y = y - (o.ay or 0) * s[10] * sy
-  sys.draw(pg.id, s[3], s[4], s[5], s[6], x + s[7] * sx, y + s[8] * sy, sx, sy,
+  sdraw(pg.id, s[3], s[4], s[5], s[6], x + s[7] * sx, y + s[8] * sy, sx, sy,
     o.alpha or 1, o.tint or 0xffffffff, o.blend or 0, o.angle or 0)
   return true
 end
@@ -197,7 +228,7 @@ function G.draw9(name, x, y, w, h, scale, o)
   for r = 1, 3 do
     for c = 1, 3 do
       if cw[c] > 0 and rh[r] > 0 and dw[c] > 0 and dh[r] > 0 then
-        sys.draw(pg.id, cx[c], ry[r], cw[c], rh[r], dx[c], dy[r], dw[c] / cw[c], dh[r] / rh[r], alpha, tint, blend, 0)
+        sdraw(pg.id, cx[c], ry[r], cw[c], rh[r], dx[c], dy[r], dw[c] / cw[c], dh[r] / rh[r], alpha, tint, blend, 0)
       end
     end
   end
@@ -205,11 +236,11 @@ function G.draw9(name, x, y, w, h, scale, o)
 end
 
 -- ------------------------------------------------------------------ primitives & text
-function G.rect(x, y, w, h, c) sys.rect(x, y, w, h, c) end
+function G.rect(x, y, w, h, c) srect(x, y, w, h, c) end
 function G.frame_rect(x, y, w, h, c, t)
   t = t or 1
-  sys.rect(x, y, w, t, c); sys.rect(x, y + h - t, w, t, c)
-  sys.rect(x, y, t, h, c); sys.rect(x + w - t, y, t, h, c)
+  srect(x, y, w, t, c); srect(x, y + h - t, w, t, c)
+  srect(x, y, t, h, c); srect(x + w - t, y, t, h, c)
 end
 -- the game's texts carry TextMeshPro rich-text tags (<br>, <mspace=..>, <color=..>, <size=..>):
 -- <br> becomes a line break, the other tags are dropped
@@ -307,13 +338,13 @@ function G.text(s, x, y, c, scale, wrap, maxLines)
     local L = rich_layout(s, scale or 1, wrap or 0, maxLines or 0)
     local lh = G.LH * (scale or 1)
     for _, op in ipairs(L.ops) do
-      if op[1] == "t" then sys.text(op[2], x + op[3], y + op[4], c or 0xffffffff, scale or 1, 0, 0)
+      if op[1] == "t" then stext(op[2], x + op[3], y + op[4], c or 0xffffffff, scale or 1, 0, 0)
       else G.draw(op[2], x + op[3], y + op[4] - 1, { fit = { lh, lh } }) end
     end
     return L.h, L.w
   end
   if (maxLines or 0) > 0 and (wrap or 0) > 0 then s = G.ellipsize(s, scale or 1, wrap, maxLines) end
-  return sys.text(s, x, y, c or 0xffffffff, scale or 1, wrap or 0, maxLines or 0)
+  return stext(s, x, y, c or 0xffffffff, scale or 1, wrap or 0, maxLines or 0)
 end
 
 -- a text that needs more than maxLines lines ends in "…" on the last one instead of being cut
@@ -365,7 +396,11 @@ function G.measure(s, scale, wrap, maxLines)
   mcache[key] = { w, h }
   return w, h
 end
-function G.clip(x, y, w, h) sys.scissor(x, y, w, h) end
+function G.clip(x, y, w, h)
+  if moved() then x, y, w, h = XF.ox + x * XF.s, XF.oy + y * XF.s, w * XF.s, h * XF.s end
+  local fl = math.floor
+  sys.scissor(fl(x), fl(y), math.max(0, fl(w + 0.5)), math.max(0, fl(h + 0.5)))
+end
 function G.unclip() sys.scissor() end
 G.LH = sys.line_height()
 

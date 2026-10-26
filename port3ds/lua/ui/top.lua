@@ -159,7 +159,12 @@ local function draw_hud()
       local label = T.tr(s[2])
       local lw = G.measure(label)
       G.text(label, x, 2, 0xb8aee0ff)
-      local txt = s[1] == "Follower" and fmt_num(st.value) or tostring(st.value)
+      -- the number counts up / down to its new value instead of jumping
+      st.shown = st.shown or st.value
+      local d = st.value - st.shown
+      st.shown = math.abs(d) < 1 and st.value or st.shown + d * 0.12
+      local v = math.floor(st.shown + 0.5)
+      local txt = s[1] == "Follower" and fmt_num(v) or tostring(v)
       G.text(txt, x + lw + 4, 2, since < 2.5 and col or s[3])
       if since < 2.5 then
         local d = (st.diff > 0 and "+" or "") .. (s[1] == "Follower" and fmt_num(st.diff) or st.diff)

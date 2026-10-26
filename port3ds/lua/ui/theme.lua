@@ -120,11 +120,27 @@ end
 -- vertical scroll state helper: drag with stylus, Circle Pad scrolls
 function T.scroller(state, x, y, w, h, contentH)
   state.y = state.y or 0
-  if I.touching_in(x, y, w, h) then state.y = state.y - I.drag_dy end
+  -- drag with the stylus; released, the list keeps the flick speed and slows down
+  if I.touching_in(x, y, w, h) then
+    state.y = state.y - I.drag_dy
+    state.v = -I.drag_dy
+  elseif state.v and state.v ~= 0 then
+    state.y = state.y + state.v
+    state.v = math.abs(state.v) > 0.3 and state.v * 0.92 or 0
+  end
   if I.isheld(K.CUP) then state.y = state.y - 4 end
   if I.isheld(K.CDOWN) then state.y = state.y + 4 end
   local maxY = math.max(0, contentH - h)
-  if state.stick_bottom and state.lastMax and state.y >= state.lastMax - 2 then state.y = maxY end
+  -- lists that follow their newest item (JINE, chat) glide down to it instead of jumping
+  if state.stick_bottom then
+    if state.lastMax and state.y >= state.lastMax - 2 then state.follow = true end
+    if I.touching_in(x, y, w, h) and I.drag_dy > 0 then state.follow = false end
+    if state.follow then
+      state.y = state.y + (maxY - state.y) * 0.25
+      if math.abs(maxY - state.y) < 0.5 then state.y = maxY end
+    end
+  end
+  if state.y < 0 or state.y > maxY then state.v = 0 end
   state.y = math.max(0, math.min(maxY, state.y))
   state.lastMax = maxY
   if contentH > h then

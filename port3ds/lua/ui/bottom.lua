@@ -313,8 +313,34 @@ local function draw_menu(enabled)
   end
 end
 
+-- windows an event opens (Internet, Pills...) show the same category window as the desktop
+-- shortcut; it closes with its x or once an action runs
+function M.draw_category(cat, win)
+  local prev = menu
+  menu = cat
+  draw_menu(true)
+  local closed = menu == nil
+  menu = prev ~= cat and prev or nil
+  if closed and win then WindowManager:Close(win) end
+end
+
 -- 16:9 wallpaper covering the 320x220 desktop (sides cropped, no bands above / below); also
 -- behind the app windows, whose area ends above the notification strip
+-- WindowTweens.born / pop: a window that comes to the front grows out of its centre
+local OPEN_T = 0.14
+local shown = { win = nil, t = 0 }
+local function open_anim(w, cx, cy, t0)
+  if not t0 then
+    if shown.win ~= w then shown.win, shown.t = w, core.now() end
+    t0 = shown.t
+  end
+  local p = math.min(1, (core.now() - t0) / OPEN_T)
+  if p >= 1 then return false end
+  local e = 1 - (1 - p) ^ 3
+  G.push_at(cx, cy, 0.25 + 0.75 * e, 0.3 + 0.7 * e)
+  return true
+end
+
 local function draw_wallpaper()
   G.rect(0, 0, 320, TB_Y, c.desk)
   G.draw("FHDbg", 160, TB_Y / 2, { ax = 0.5, ay = 0.5, w = math.ceil(TB_Y * 16 / 9), h = TB_Y })
@@ -506,7 +532,9 @@ function M.draw()
     draw_desktop()
   elseif f and mod then
     draw_wallpaper()
+    local anim = open_anim(f, 160, APP_H / 2)
     mod.draw(f, 0, 0, 320, APP_H)
+    if anim then G.pop() end
   elseif f then
     local x, y = T.window(4, 4, 312, APP_H - 4, f.app)
     G.text("(" .. f.app .. ")", x + 4, y + 4, c.inkSoft)
@@ -518,7 +546,11 @@ function M.draw()
   draw_taskbar()
   -- modal dialogs and full-screen effects always on top
   for _, w in EACH(WindowManager.windows) do
-    if w.kind == "dialog" then app_module("dialog").draw(w, 0, 0, 320, 240) end
+    if w.kind == "dialog" then
+      local anim = open_anim(w, 160, 120, w.opened or 0)
+      app_module("dialog").draw(w, 0, 0, 320, 240)
+      if anim then G.pop() end
+    end
   end
   for _, w in ipairs(WindowManager:fxWindows()) do require("ui.fx").draw_bottom(w) end
   if chipget.active() and not paused then

@@ -13,21 +13,30 @@ local DURATION = { App_Ending_Grand = 106, App_Ending_Netshut = 120 }
 local feeds = setmetatable({}, { __mode = "k" })
 local centre = nil
 
+local STATIC = require("ui.apps.ending_static")
+local function lang() return Settings.CurrentLanguage.Value end
+
+-- the feed is fixed in the original prefabs (PoketterCellStatic2D tweets with their
+-- KusoRepViewStatic2D replies), not the player's own history
 local function feed(win)
   local f = feeds[win]
   if f then return f end
   f = { items = {}, total = 0 }
-  local hist = PoketterManager.history
-  for i = 1, hist and hist.n or 0 do
-    local e = pk.entry(hist.items[i])
-    if win.app == "App_Ending_Netshut" then
-      -- only the replies: one card per kusorep
-      for _, r in ipairs(e.replies) do
-        local _, h = G.measure(r, 1, pk.W - 40)
-        f.items[#f.items + 1] = { text = r, h = h + 10, kuso = true }
+  for _, it in ipairs(STATIC[win.app] or {}) do
+    if it[1] == "t" then
+      local ok, d = pcall(NEW, "TweetData", 1, ENUMN("TweetType", it[2]), true)
+      if ok and d then
+        local e = pk.entry(d)
+        e.replies = {}   -- its replies follow as their own cards
+        f.items[#f.items + 1] = { e = e, h = e.h }
       end
     else
-      f.items[#f.items + 1] = { e = e, h = e.h }
+      local ok, kd = pcall(NEW, "KusoRepDrawable", 1, ENUMN("KusoRepType", it[2]))
+      local body = ok and NgoEx.GetKusoRepBody(kd, lang())
+      if body and body ~= NULL and body ~= "" then
+        local _, h = G.measure(body, 1, pk.W - 40)
+        f.items[#f.items + 1] = { text = body, h = h + 10, kuso = true }
+      end
     end
   end
   for _, it in ipairs(f.items) do f.total = f.total + it.h + 2 end

@@ -10,6 +10,9 @@ local M = { icon = "icon_desktop_okusuri" }
 local MAP = { Pills = "okusuri", PillDypass = "okusuri", PillPuron = "okusuri", PillHipron = "okusuri", PillHappa = "okusuri",
               PillPsyche = "okusuri", PillPuron_Horror = "okusuri", Entame = "ame", Internet = "internet", Asobu = "ame", AsobuNeedy = "ame", AsobuLust = "ame" }
 
+local PILL = { PillDypass = "dypass", PillPuron = "puron", PillPuron_Horror = "puron", PillHipron = "hyporon",
+               PillHappa = "happa", PillPsyche = "psyche" }
+
 -- App_AsobuInran / App_AsobuNeedy (Ending_Lust, Ending_Needy): only three "H" shortcuts are left,
 -- labelled like PlayMakeLove; ActionButtonInran / ActionButtonNeedy run Action_Inran / Action_Needy
 local SPECIAL = { AsobuLust = "Action_Inran", AsobuNeedy = "Action_Needy" }
@@ -41,22 +44,10 @@ function M.draw(win, x0, y0, w0, h0)
   if SPECIAL[win.app] then return draw_special(win, x0, y0, w0, h0) end
   local cat = MAP[win.app] or "ame"
   local B = require("ui.bottom")
-  local list = B.MENUS[cat]
-  -- titled like the desktop menu of that category (the window id is not a player-facing text)
-  local title = T.st(B.MENU_LABEL[cat], win.app)
-  local icon = ({ okusuri = "icon_desktop_okusuri", internet = "icon_desktop_internet", ame = "icon_desktop_asobu" })[cat]
-  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, title, icon)
-  if win.closeable and T.close("tasks_close") then
-    WindowManager:Close(win) return
-  end
-  for i, a in ipairs(list) do
-    local ok, title = pcall(CommandHelper.GetCommandTitle_3, a, Settings.CurrentLanguage.Value)
-    if not ok then title = nil end
-    if T.button("task_" .. a, x + 4, y + 4 + (i - 1) * 24, w - 8, 22, (title and title ~= NULL) and title or a) then
-      WindowManager:Close(win)
-      CommandManager:CommandAction_2(a)
-    end
-  end
+  -- App_KusuriDypass, App_KusuriPuron...: the window of one drug opens with it already picked
+  local d = PILL[win.app]
+  if d and win._pill ~= true then win._pill = true; B.debug_drug(d) end
+  B.draw_category(cat, win)
 end
 
 return M

@@ -21,6 +21,7 @@ local BW = 220   -- bubble wrap width
 
 local function lang() return Settings.CurrentLanguage.Value end
 
+local opened_t, opened_win = 0, nil
 local function entry(d)
   local e = cache[d]
   if e then return e end
@@ -46,6 +47,8 @@ local function entry(d)
   if e.stamp then h = 56 elseif e.sepLabel or d.user == "separator" or d.user == "timeSeparator" then h = 14 else h = h + 8 end
   if e.image then h = h + 64 end
   e.h = h + 4
+  -- JineCell2D fades new messages in; the history already there when the window opens does not
+  if core.now() - opened_t > 0.4 then e.born = core.now() end
   cache[d] = e
   return e
 end
@@ -101,6 +104,7 @@ function M.back()
 end
 
 function M.draw(win, x0, y0, w0, h0)
+  if opened_win ~= win then opened_win, opened_t = win, core.now() end
   local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, "JINE", "icon_taskbar_jine")
   if win.closeable and T.close("jine_close") then
     WindowManager:Close(win) return
@@ -132,7 +136,17 @@ function M.draw(win, x0, y0, w0, h0)
   G.clip(x, y, w, lh)
   local yy = y + 3 - sy
   for _, e in ipairs(entries) do
-    if yy + e.h > y and yy < y + lh then draw_entry(e, x, yy, w - 4) end
+    if yy + e.h > y and yy < y + lh then
+      local p = e.born and (core.now() - e.born) / 0.45 or 1
+      if p < 1 then
+        local k = 1 - (1 - p) ^ 2
+        G.push(0, (1 - k) * 8, 1, k)
+        draw_entry(e, x, yy, w - 4)
+        G.pop()
+      else
+        draw_entry(e, x, yy, w - 4)
+      end
+    end
     yy = yy + e.h
   end
   G.unclip()
