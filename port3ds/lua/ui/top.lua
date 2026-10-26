@@ -369,10 +369,11 @@ local function draw_scene(w)
       if bankv and bankv.id then sys.video_close(bankv.id) end
       local id, vw, vh, fps, frames = sys.video_open(sys.data .. "vid/" .. vname .. ".etv")
       bankv = { win = w, name = vname, id = id, w = vw, h = vh, fps = fps, frames = frames }
+      if not id then LOG_ONCE("bankv_open", "bank video failed to open", vname) end
     end
     if bankv.id then
       local f = math.min(bankv.frames - 1, math.floor((core.now() - w.opened) * bankv.fps))
-      sys.video_show(bankv.id, f)
+      if not sys.video_show(bankv.id, f) then LOG_ONCE("bankv_show", "bank video frame failed", f) end
       local s = math.min(400 / bankv.w, 240 / bankv.h)
       sys.video_draw(bankv.id, (400 - bankv.w * s) / 2, (240 - bankv.h * s) / 2, s)
     else
