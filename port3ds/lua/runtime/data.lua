@@ -23,6 +23,26 @@ function data.text(tbl, field, id)
   return f and f[id]
 end
 
+-- a text by id from any table (SystemText, KusoComment, Ending...), for UI copied from prefabs
+local any_index, any_lang
+function data.any_text(id)
+  if any_lang ~= data.lang then
+    any_index, any_lang = {}, data.lang
+    for _, tbl in pairs(texts or {}) do
+      if type(tbl) == "table" then
+        for _, field in pairs(tbl) do
+          if type(field) == "table" then
+            for k, v in pairs(field) do
+              if type(v) == "string" and any_index[k] == nil then any_index[k] = v end
+            end
+          end
+        end
+      end
+    end
+  end
+  return any_index[id]
+end
+
 -- "BodySp" / "OmoteBodyJp" ... -> base field name, or nil
 local function split_lang(k)
   for _, s in ipairs(LANG_SUFFIX) do
@@ -59,8 +79,27 @@ end
 
 -- ScriptableObject assets exported by build_assets.py (so step), enum ints converted by schema
 local schemas
+-- schema of a type including the fields of its base classes (AlphaTypeToData : NetaTypeToData)
+local merged = {}
+local function schema_of(typeKey)
+  local m = merged[typeKey]
+  if m ~= nil then return m end
+  m = {}
+  local name, guard = typeKey, 0
+  while name and guard < 8 do
+    for f, kind in pairs(schemas[name] or {}) do if m[f] == nil then m[f] = kind end end
+    local C = core.resolve(name)
+    local sup = C ~= NULL and C and rawget(C, "super")
+    name = sup and rawget(sup, "__name") or nil
+    guard = guard + 1
+  end
+  if next(m) == nil then m = false end
+  merged[typeKey] = m
+  return m
+end
+
 local function convert(v, typeKey)
-  local sc = schemas[typeKey]
+  local sc = schema_of(typeKey)
   if not sc or type(v) ~= "table" then return v end
   for field, kind in pairs(sc) do
     local x = v[field]
@@ -113,7 +152,7 @@ function Resources.Load(typeName, path)
   return NULL
 end
 function Resources.LoadAll() return List.new() end
-function Resources.UnloadUnusedAssets() end
+function Resources.UnloadUnusedAssets() return NULL end
 
 -- ------------------------------------------------------------------ serialization (ES3)
 local function ser(v, out, depth)
@@ -204,8 +243,16 @@ function ES3.Save(key, value, file)
   es3_file(file)[key] = value
   es3_flush(file)
 end
--- ES3.Load<T>(key, file[, default]): cs2lua passes the generic type name first
-function ES3.Load(typeName, key, file, default)
+-- ES3.Load<T>(key, file[, default]): cs2lua passes the generic type name first, except when C#
+-- inferred T from the default value: then the call is Load(key, file, default). Keys are all
+-- caps ("JINEHISTORY"), type names are not ("List", "Boolean", "JineType").
+local function is_type_name(s)
+  return type(s) == "string" and s:find("%l") ~= nil and not s:find("%.es3$")
+end
+function ES3.Load(a, b, c, d)
+  local key, file, default
+  if is_type_name(a) then key, file, default = b, c, d else key, file, default = a, b, c end
+  if type(file) ~= "string" then file = nil end
   local v = es3_file(file)[key]
   if v == nil then return default end
   return v

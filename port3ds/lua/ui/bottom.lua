@@ -27,7 +27,11 @@ M.app_module = app_module
 function M.init()
   pause = require("ui.apps.pause")
   -- modules that register views the game code calls right after opening a window
-  for _, k in ipairs({ "dialog", "poketter", "internet", "pictures", "live", "jine", "nade" }) do app_module(k) end
+  for _, k in ipairs({ "dialog", "poketter", "internet", "pictures", "live", "jine", "nade", "chipget", "wristcut" }) do app_module(k) end
+  -- the ChipGetCover scene component (NetaManager._chipGet / EventManager.chipget bind to it)
+  core.components.ChipGetCover = app_module("chipget").cover
+  app_module("endingblue").hook()
+  app_module("metacover")
 end
 
 local function lang() return Settings.CurrentLanguage.Value end
@@ -92,6 +96,7 @@ end
 
 -- ------------------------------------------------------------------ desktop
 local menu = nil   -- open action category
+local goForced = false   -- menu opened by the GoOut window
 
 local function action_status(a)
   local st = CommandManager.commandStatus and CommandManager.commandStatus.Value
@@ -104,8 +109,16 @@ end
 local function run_action(a)
   if StatusManager.Moved.Value then return end
   menu = nil
+  -- the GoOut window (Ame asks to go out) closes once a destination is chosen
+  local go = WindowManager:find("GoOut")
+  if go then WindowManager:Close(go) end
   if a == "Haishin" then
     WindowManager:NewWindow_2("NetaChoose")
+    return
+  end
+  -- "Citas" opens the Dinder app; its Like button runs the action
+  if a == "InternetDeai" then
+    WindowManager:NewWindow_2("Dinder")
     return
   end
   CommandManager:CommandAction_2(a)
@@ -125,14 +138,105 @@ local MENUS = {
   darkness = { "Darkness" },
 }
 M.MENUS = MENUS
+M.MENU_LABEL = MENU_LABEL
+-- category icon of each act window, and the per-command icons of App_Asobu / App_Internet /
+-- App_Sleep (their ShortcutPrefabs), in the same order as the original windows
+local MENU_ICON = { ame = "icon_desktop_asobu", internet = "icon_desktop_internet", neru = "icon_desktop_neru",
+                    okusuri = "icon_desktop_okusuri", odekake = "icon_desktop_odekake", darkness = "icon_desktop_darkness" }
+local ACT_ICON = {
+  ame = { EntameGame = "icon_desktop_game", PlayIchatuku = "icon_desktop_ichatsuku", PlayMakeLove = "icon_desktop_hnakoto" },
+  internet = { InternetPoketter = "icon_desktop_twitter", InternetPoketterEgosa = "icon_desktop_egosearch",
+               InternetYoutube = "icon_desktop_movie", Internet2ch = "icon_desktop_2ch", InternetDeai = "icon_desktop_tinder" },
+  neru = { SleepToTwilight = "icon_desktop_neru_evening", SleepToNight = "icon_desktop_neru_night", SleepToTomorrow = "icon_desktop_neru_noon" },
+  darkness = { Darkness = "icon_desktop_darkness" },
+}
+MENUS.ame = { "EntameGame", "PlayIchatuku", "PlayMakeLove" }
+MENUS.internet = { "InternetPoketter", "InternetPoketterEgosa", "InternetYoutube", "Internet2ch", "InternetDeai" }
 
 local menuScroll = {}
 -- used by the PC test harness to visit every screen
 function M.debug_open_menu(name) menu = name end
 function M.debug_pause(v) paused = v end
+-- open menu + the entry under the stylus / D-pad focus (the top screen shows the outing map)
+function M.current_menu() return menu, M.menu_hover end
+
+-- Medicine (App_Kusuri* windows): each drug with its blister / bottle art; picking one shows its
+-- moderate and overdose commands, and the top screen shows its package insert (YakujoUnit)
+local DRUGS = {
+  { key = "dypass", art = "icon_window_daypass_none", tablet = "icon_window_daypass_tablet",
+    acts = { "OkusuriDaypassModerate", "OkusuriDaypassOverdose" } },
+  { key = "puron", art = "bron_base", acts = { "OkusuriPuronModerate", "OkusuriPuronOverdose" } },
+  { key = "hyporon", art = "icon_window_hiporon_none", tablet = "icon_window_hiporon_capsule1",
+    acts = { "OkusuriHiPuronOverdose" } },
+  { key = "happa", art = "icon_window_happa", acts = { "OkusuriHappa" } },
+  { key = "psyche", art = "icon_window_psyche", acts = { "OkusuriPsyche" } },
+}
+local drug = nil          -- selected drug
+function M.debug_drug(key) for _, d in ipairs(DRUGS) do if d.key == key then drug = d end end end
+M.drug_shown = nil        -- drug whose insert the top screen shows
+
+local function drug_art(d, cx, cy, size, alpha)
+  G.draw(d.art, cx, cy, { ax = 0.5, ay = 0.5, fit = { size, size }, alpha = alpha })
+  if d.tablet then   -- the tablets still in the sheet (2 x 3, like the prefab)
+    local s = size / 180
+    for r = 0, 2 do
+      for col = 0, 1 do
+        G.draw(d.tablet, cx + (col == 0 and -29 or 31) * s, cy + (43 - r * 50) * -s,
+          { ax = 0.5, ay = 0.5, fit = { 40 * s, 38 * s }, alpha = alpha })
+      end
+    end
+  end
+end
+
+local function draw_pills(x, y, w, h, enabled, visible)
+  local avail = {}
+  for _, it in ipairs(visible) do avail[it.a] = it.s end
+  M.drug_shown = drug and drug.key or nil
+  if drug then
+    -- the selected drug: art on the left, its commands as BaseButtons on the right
+    drug_art(drug, x + 60, y + h / 2 - 6, 100, 1)
+    local by = y + 10
+    for _, a in ipairs(drug.acts) do
+      local s = avail[a]
+      if s then
+        if T.button("act_" .. a, x + 126, by, w - 134, 30, cmd_title(a), { center = true, disabled = s == "Yada" or not enabled }) then
+          drug = nil
+          run_action(a)
+          return
+        end
+        by = by + 36
+      end
+    end
+    if T.button("drug_back", x + 126, y + h - 30, w - 134, 24, "◀", { center = true, flat = true }) or I.pressed(K.B) then drug = nil end
+    return
+  end
+  local shown = {}
+  for _, d in ipairs(DRUGS) do
+    for _, a in ipairs(d.acts) do if avail[a] then shown[#shown + 1] = d break end end
+  end
+  local cw = (w - 8) / math.max(3, #shown)
+  for i, d in ipairs(shown) do
+    local bx = x + 4 + (i - 1) * cw
+    local id = "drug_" .. d.key
+    local pressed = I.touching_in(bx, y + 4, cw, h - 8)
+    local foc = I.focusable(id, bx, y + 4, cw, h - 8)
+    if pressed or foc then M.drug_shown = d.key; G.rect(bx + 2, y + 4, cw - 4, h - 8, 0x4d22cf18) end
+    drug_art(d, bx + cw / 2, y + h / 2 - 10, math.min(cw - 8, 96), enabled and 1 or 0.4)
+    local name = NgoEx.yakujo(d.key, "namae", lang())
+    G.text_center(((name ~= NULL and name or d.key):gsub("%s*%(.*", ""):gsub("%s*（.*", "")), bx + cw / 2, y + h - 30, c.ink, 1, cw - 6)
+    if foc then T.focus_ring(bx + 2, y + 4, cw - 4, h - 8) end
+    if enabled and (I.tapped(bx, y + 4, cw, h - 8) or I.activated(id)) then
+      if T.click_se then T.click_se() end
+      drug = d
+    end
+  end
+end
+
 local function draw_menu(enabled)
   local list = MENUS[menu]
-  local forced = menu == "darkness"
+  M.visible_actions = {}
+  M.menu_hover = nil
+  local forced = menu == "darkness" or (menu == "odekake" and WindowManager:find("GoOut") ~= nil)
   local title = st(MENU_LABEL[menu]) or (forced and cmd_title("Darkness")) or menu
   local x, y, w, h = T.window(4, 4, 312, APP_H - 4, title)
   if forced then enabled = not StatusManager.Moved.Value
@@ -140,7 +244,47 @@ local function draw_menu(enabled)
   local visible = {}
   for _, a in ipairs(list) do
     local s = action_status(a)
-    if s ~= "Invisible" then visible[#visible + 1] = { a = a, s = s } end
+    if s ~= "Invisible" then visible[#visible + 1] = { a = a, s = s }; M.visible_actions[a] = true end
+  end
+  -- TitleGroup of the original act windows: pink circle with the category icon, title, gray line
+  G.rect(x, y, w, h, c.white)
+  G.draw("circle", x + 4, y + 3, { w = 24, h = 24, tint = 0xefd0f0ff, blend = 1 })
+  G.draw(MENU_ICON[menu] or "icon_desktop_asobu", x + 0, y - 1, { fit = { 32, 32 } })
+  G.text(title, x + 38, y + 4, c.ink, 1, w - 44, 1)
+  G.rect(x + 36, y + 17, w - 44, 1, 0xdfdfdfff)
+  y, h = y + 28, h - 28
+  if menu == "okusuri" then return draw_pills(x, y, w, h, enabled, visible) end
+  -- icon grid (ShortcutPrefab: 64px icon + label) for the menus that had one on PC
+  local icons = ACT_ICON[menu] and true
+  if icons then
+    local cols, cw, ch = 3, (w - 8) / 3, 60
+    local sy = T.scroller(menuScroll, x, y, w, h, math.ceil(#visible / cols) * ch + 4)
+    G.clip(x, y, w, h)
+    for i, it in ipairs(visible) do
+      local bx = x + 4 + ((i - 1) % cols) * cw
+      local by = y + 4 + math.floor((i - 1) / cols) * ch - sy
+      local id = "act_" .. it.a
+      local yada = it.s == "Yada" or not enabled
+      local hinted = CommandManager.isHinted and CommandManager:isHinted(it.a)
+      local pressed = I.touching_in(bx, by, cw, ch - 2)
+      local foc = I.focusable(id, bx, by, cw, ch - 2)
+      if pressed or foc then M.menu_hover = it.a; G.rect(bx + 4, by, cw - 8, ch - 4, 0x4d22cf20) end
+      if hinted then G.rect(bx + cw / 2 - 20, by, 40, 36, c.yellow) end
+      G.draw(ACT_ICON[menu][it.a] or MENU_ICON[menu], bx + cw / 2 - 16, by + 2 + (pressed and 1 or 0),
+        { fit = { 32, 32 }, alpha = yada and 0.4 or 1 })
+      G.text_center(cmd_title(it.a), bx + cw / 2, by + 37, yada and c.inkSoft or c.ink, 1, cw - 4)
+      if foc then T.focus_ring(bx + 2, by, cw - 4, ch - 4) end
+      if not yada and (I.tapped(bx, by, cw, ch - 2) or I.activated(id)) then
+        if T.click_se then T.click_se() end
+        run_action(it.a)
+      end
+      if I.long_pressed(bx, by, cw, ch - 2) then CommandManager:OnActionHovered_1(it.a) end
+    end
+    G.unclip()
+    if not I.touching and TooltipManager.current and TooltipManager.current.kind == "action" then
+      if core.now() - TooltipManager.current.t > 3 then TooltipManager:Hide() end
+    end
+    return
   end
   local cols = menu == "odekake" and 2 or 1
   local bh = 30
@@ -153,6 +297,7 @@ local function draw_menu(enabled)
     local bw = (w - 8 - (cols - 1) * 4) / cols
     local bx, by = x + 4 + col * (bw + 4), y + 4 + row * (bh + 4) - sy
     if by > y - bh and by < y + h then
+      if I.touching_in(bx, by, bw, bh) or I.focus_id == "act_" .. it.a then M.menu_hover = it.a end
       local yada = it.s == "Yada"
       local hinted = CommandManager.isHinted and CommandManager:isHinted(it.a)
       if T.button("act_" .. it.a, bx, by, bw, bh, cmd_title(it.a), { disabled = yada or not enabled, fill = hinted and c.yellow or nil, maxLines = 2 }) then
@@ -168,15 +313,38 @@ local function draw_menu(enabled)
   end
 end
 
-local function draw_desktop()
+-- 16:9 wallpaper covering the 320x220 desktop (sides cropped, no bands above / below); also
+-- behind the app windows, whose area ends above the notification strip
+local function draw_wallpaper()
   G.rect(0, 0, 320, TB_Y, c.desk)
-  G.draw("FHDbg", 160, 110, { ax = 0.5, ay = 0.5, fit = { 320, 220 } })
+  G.draw("FHDbg", 160, TB_Y / 2, { ax = 0.5, ay = 0.5, w = math.ceil(TB_Y * 16 / 9), h = TB_Y })
+end
+
+local function draw_desktop()
+  draw_wallpaper()
   -- EventManager.SetShortcutState toggles this CanvasGroup during events, as on the PC desktop
   local shortcuts = core.ui_state("ShortCutParent")
   local enabled = TaskbarManager.interactive ~= false and not StatusManager.Moved.Value and shortcuts.interactable ~= false
+  -- horror day 4: HakkyoShortCutParent replaces the desktop; every icon (and the secret one)
+  -- opens the HakkyoDialog
+  -- Ending_Sucide: the "liveend" icon, the only thing left on the desktop, starts the last stream
+  local le = core.ui_objects.liveend
+  if le and rawget(le, "_active") == true and not StatusManager.Moved.Value then
+    if T.icon("desk_liveend", 4 + 2 * 66, 66, "icon_desktop_youtube", st("Shortcut_Haishin") or "Live", 1) then
+      rawset(le, "_active", false)
+      WindowManager:NewWindow_2("Broadcast")
+    end
+  end
+  local hk = core.ui_state("HakkyoShortCutParent")
+  local hakkyo = hk.interactable == true and (hk.alpha or 0) > 0
+  if hakkyo then
+    enabled = true
+    if T.icon("desk_himitu", 4 + 2 * 66, 4, "icon_desktop_folder_zip", "himitu") then WindowManager:NewWindow_2("Hakkyo") end
+  end
   -- the uncloseable Darkness window shows its command menu until an action runs
-  local dark = WindowManager:find("Darkness")
-  if dark and not StatusManager.Moved.Value then menu = "darkness" elseif menu == "darkness" then menu = nil end
+  if menu == "darkness" then menu = nil end
+  if WindowManager:find("GoOut") and not StatusManager.Moved.Value then menu, goForced = "odekake", true
+  elseif goForced then menu, goForced = nil, false end
   if menu then draw_menu(enabled) return end
   -- diary shortcuts the story unlocks (EventManager.PsycheNikkiN / LoveNikkiN SetActive(true))
   local dx, dy = 140, 4
@@ -201,9 +369,13 @@ local function draw_desktop()
   if login.interactable == true and (login.alpha or 0) > 0 then
     if T.icon("desk_login", 12, 140, "icon_desktop_youtube", "Login", 1) then WindowManager:NewWindow_2("Login") end
   end
+  -- ShortCutParent children the story switched off (Ending_Completed's empty desktop)
+  local SCENE_NAME = { live = "Live", asobu = "asobu", neru = "neru", okusuri = "okusuri", internet = "internet", odekake = "Odekake" }
   for i, d in ipairs(DESKTOP) do
     local col, row = math.floor((i - 1) / 3), (i - 1) % 3
     local x, y = 4 + col * 66, 4 + row * 62
+    local so = core.ui_objects[SCENE_NAME[d.id]]
+    if so and rawget(so, "_active") == false then goto next_icon end
     local label = st(d.label) or d.id
     local badge = 0
     if d.open then
@@ -214,11 +386,13 @@ local function draw_desktop()
     local icon = d.icon
     if d.id == "neru" then icon = "icon_desktop_neru_" .. (({ [0] = "noon", "evening", "night" })[StatusManager:GetStatus("DayPart")] or "night") end
     if T.icon("desk_" .. d.id, x, y, icon, label, badge) then
-      if d.open then WindowManager:NewWindow_2(d.open)
+      if hakkyo then WindowManager:NewWindow_2("Hakkyo")
+      elseif d.open then WindowManager:NewWindow_2(d.open)
       elseif not enabled then AudioManager:PlaySeByType("SE_cancel")
       elseif d.action then run_action(d.action)
       else menu = d.menu; menuScroll.y = 0 end
     end
+    ::next_icon::
   end
   if not enabled then
     G.text_center("…", 160, 150, c.white)
@@ -258,21 +432,34 @@ end
 -- MainPanel/Taskbar: StartButton (button_start), JINE / Poketter / Task manager shortcuts,
 -- open windows, and the DayButton (button_day) with the day and time of day on the right
 local function draw_taskbar()
+  -- endings hide the bar (TaskBarGroup.alpha = 0)
+  local tg = TaskbarManager.TaskBarGroup
+  if type(tg) == "table" and tg ~= NULL and rawget(tg, "alpha") == 0 then
+    G.rect(0, TB_Y, 320, 20, 0x000000ff)
+    return
+  end
   G.rect(0, TB_Y, 320, 20, c.paper)
   G.rect(0, TB_Y, 320, 1, c.lilac)
-  local pressed = I.touching_in(1, TB_Y + 2, 54, 16)
-  if not G.draw("button_start", 1, TB_Y + 2 + (pressed and 1 or 0), { w = 54, h = 16 }) then G.rect(1, TB_Y + 2, 54, 16, c.pink) end
-  G.text_center(st("Start_Menu_Open") or "Inicio", 34, TB_Y + 5 + (pressed and 1 or 0), c.ink)
-  if I.focusable("start", 1, TB_Y + 2, 54, 16) then T.focus_ring(1, TB_Y + 2, 54, 16) end
-  if I.tapped(1, TB_Y, 56, 20) or I.activated("start") then paused = true; if T.click_se then T.click_se() end end
+  local pressed = I.touching_in(1, TB_Y + 2, 68, 16)
+  -- button_start at its native size (136x32 at 0.5): the Windose logo takes the first 18 px
+  if not G.draw("button_start", 1, TB_Y + 2 + (pressed and 1 or 0), { scale = T.S }) then G.rect(1, TB_Y + 2, 68, 16, c.pink) end
+  local sl = st("Start_Menu_Open") or "Inicio"
+  local slw = G.measure(sl)
+  slw = math.min(46, slw)
+  G.text(sl, math.floor(44 - slw / 2), TB_Y + 5 + (pressed and 1 or 0), c.ink, 1, 48, 1)
+  if I.focusable("start", 1, TB_Y + 2, 68, 16) then T.focus_ring(1, TB_Y + 2, 68, 16) end
+  if I.tapped(1, TB_Y, 70, 20) or I.activated("start") then paused = true; if T.click_se then T.click_se() end end
   -- quick shortcuts (AmechanShortcut / PoketterShortcut / JineShortcut / TaskManagerShortcut)
   local QS = { { "icon_taskbar_jine", "Jine" }, { "icon_taskbar_poketter", "Poketter" }, { "icon_taskbar_taskmanager", "TaskManager" } }
   for i, q in ipairs(QS) do
-    local qx = 58 + (i - 1) * 16
+    local qx = 72 + (i - 1) * 16
+    local qo = q[2] == "TaskManager" and core.ui_objects.TaskManagerShortcut
+    if qo and rawget(qo, "_active") == false then goto next_qs end
     if I.touching_in(qx, TB_Y + 2, 15, 16) then G.rect(qx, TB_Y + 2, 15, 16, 0x4d22cf30) end
     G.draw(q[1], qx + 1, TB_Y + 4, { fit = { 12, 12 } })
     if I.focusable("qs" .. i, qx, TB_Y + 2, 15, 16) then T.focus_ring(qx, TB_Y + 2, 15, 16) end
     if I.tapped(qx, TB_Y, 16, 20) or I.activated("qs" .. i) then WindowManager:NewWindow_2(q[2]) end
+    ::next_qs::
   end
   -- day button
   local day = StatusManager:GetStatus("DayIndex")
@@ -284,7 +471,7 @@ local function draw_taskbar()
   if T.button("skip", 230, TB_Y + 2, 22, 16, ">>", { center = true, flat = true, fill = core.fast and c.yellow or c.paper2 }) then
     core.fast = not core.fast
   end
-  local x = 108
+  local x = 122
   for _, w in EACH(WindowManager.windows) do
     if (w.screen == "bottom" or w.screen == "both") and x < 205 then
       local active = WindowManager.focusBottom == w
@@ -301,17 +488,24 @@ end
 -- ------------------------------------------------------------------ frame
 function M.draw()
   if not StatusManager.statuses then G.rect(0, 0, 320, 240, 0x000000ff) return end
+  local blue = app_module("endingblue")
+  if blue.active() then blue.draw_bottom() return end
+  local meta = app_module("metacover")
+  if meta.active() then meta.draw_bottom() return end
 
-  -- while the start menu is open it gets the tap; the UI below only draws
+  -- while the start menu or the new-idea cover is open it gets the tap; the UI below only draws
+  local chipget = app_module("chipget")
   local held_tap
-  if paused then held_tap, I.tap = I.tap, nil end
+  if paused or chipget.active() then held_tap, I.tap = I.tap, nil end
   local f = WindowManager.focusBottom
   local mod = f and app_module(f.kind)
   local nade = app_module("nade")
   if nade.active() then
     nade.draw()
+  elseif f and f.kind == "gomenu" then
+    draw_desktop()
   elseif f and mod then
-    G.rect(0, 0, 320, TB_Y, c.desk)
+    draw_wallpaper()
     mod.draw(f, 0, 0, 320, APP_H)
   elseif f then
     local x, y = T.window(4, 4, 312, APP_H - 4, f.app)
@@ -327,6 +521,10 @@ function M.draw()
     if w.kind == "dialog" then app_module("dialog").draw(w, 0, 0, 320, 240) end
   end
   for _, w in ipairs(WindowManager:fxWindows()) do require("ui.fx").draw_bottom(w) end
+  if chipget.active() and not paused then
+    I.tap = held_tap
+    chipget.draw()
+  end
   if paused then
     I.tap = held_tap
     if pause.draw(function() paused = false end) then paused = false end

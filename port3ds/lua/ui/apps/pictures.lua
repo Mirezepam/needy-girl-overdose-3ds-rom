@@ -8,10 +8,12 @@ local c = T.c
 local M = { icon = "icon_picture" }
 local scroll = {}
 local viewer = { current = nil }
+-- ImageViewer.SetData(address): the picture to show (ImageViewerHelper.OpenImageViewer)
+function viewer:SetData(address) self.current = address end
 core.views.ImageViewer = viewer
 
 function M.draw(win, x0, y0, w0, h0)
-  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, "Mis imágenes", "icon_picture")
+  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, T.st("Start_Menu_MyPicture", "Mis imágenes"), "icon_picture")
   if win.closeable and T.close("pic_close") then
     WindowManager:Close(win) return
   end

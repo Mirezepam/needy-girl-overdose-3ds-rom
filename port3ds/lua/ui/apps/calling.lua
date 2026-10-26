@@ -7,13 +7,16 @@ local c = T.c
 local M = { icon = "icon_taskbar_jine" }
 
 function M.draw(win, x0, y0, w0, h0)
-  G.rect(0, 0, 320, 220, 0x3a2a5aff)
-  G.draw("icon_jine_ame", 160, 60, { ax = 0.5, ay = 0.5, scale = 2 })
-  G.text_center("Ame", 160, 100, c.white)
-  local pulse = math.floor((math.sin(core.now() * 8) * 0.5 + 0.5) * 255)
-  G.rect(130, 140, 60, 40, 0x40e080 * 256 + 255)
-  G.frame_rect(126, 136, 68, 48, 0xffffff00 + pulse, 2)
-  G.text_center("JINE", 160, 154, c.white)
+  G.rect(0, 0, 320, 220, 0x000000ff)   -- the whole desktop, down to the taskbar
+  local x, y, w, h = T.window(50, 30, 220, 140, T.st("Window_Calling", "JINE"), "icon_taskbar_jine")
+  G.rect(x, y, w, h, 0x1d1a24ff)
+  G.draw("icon_jine_ame", x + w / 2, y + 36, { ax = 0.5, ay = 0.5, fit = { 48, 48 } })
+  -- the five green dots of the call art, lighting up one after another
+  local k = math.floor(core.now() * 5) % 6
+  for i = 0, 4 do
+    G.rect(x + w / 2 - 34 + i * 14, y + 70, 6, 6, i < k and 0x2bd94aff or 0x1f5a2bff)
+  end
+  G.text_center("Ame", x + w / 2, y + 86, c.white)
 end
 
 return M

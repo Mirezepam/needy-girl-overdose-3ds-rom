@@ -27,7 +27,7 @@ local function entry(d)
   e = { user = d.user }
   if d.user == "separator" then
     e.text = NgoEx.DayText(d.day, lang())
-    if e.text == NULL or e.text == "" then e.text = "Día " .. tostring(d.day) end
+    if e.text == NULL or e.text == "" then e.text = T.st("Day_Live", "DÍA") .. " " .. tostring(d.day) end
   elseif d.user == "timeSeparator" then
     e.text = NgoEx.TimeText(d.day, lang())
     if e.text == NULL then e.text = "" end
@@ -54,11 +54,14 @@ local function draw_entry(e, x, y, w)
   if e.user == "separator" or e.user == "timeSeparator" or e.sepLabel then
     -- App_Jine_Separator_2D: date pill (JINE_date) centered
     if (e.text or "") == "" then return end
-    local tw = G.measure(e.text)
-    if not G.draw9("JINE_date", x + (w - tw) / 2 - 8, y, tw + 16, 13, 0.5, { tint = 0xab9ed7ff, blend = 1 }) then
-      G.rect(x + (w - tw) / 2 - 6, y + 1, tw + 12, 12, c.sep)
-    end
-    G.text_center(e.text, x + w / 2, y + 1, c.white)
+    -- drawn as a plain pixel pill on whole pixels: the tinted 9-slice smeared the text on hardware
+    local tw = math.floor(G.measure(e.text) + 0.5)
+    local px, pw = math.floor(x + (w - tw) / 2) - 7, tw + 14
+    local py = math.floor(y)
+    G.rect(px + 2, py, pw - 4, 13, c.sep)
+    G.rect(px + 1, py + 1, pw - 2, 11, c.sep)
+    G.rect(px, py + 2, pw, 9, c.sep)
+    G.text(e.text, px + 7, py + 1, c.white)
     return
   end
   local ame = e.user ~= "pi"
@@ -160,7 +163,7 @@ function M.draw(win, x0, y0, w0, h0)
         if T.button("stamp" .. i, bx, by, 72, 26, "", { flat = true }) then send_stamp(st) end
         if not G.draw(STAMP_SPRITE[st], bx + 24, by + 1, { fit = { 24, 24 } }) then G.text(st, bx + 4, by + 8, c.ink, 1, 64, 1) end
       end
-    elseif T.button("jstamps", x + 4, py + 2, w - 8, 18, "☺ Stickers", { center = true, flat = true }) then
+    elseif T.button("jstamps", x + 4, py + 2, w - 8, 18, "☺ " .. T.tr({ es = "Stickers", en = "Stickers", ja = "スタンプ" }), { center = true, flat = true }) then
       stampsOpen = true
     end
   end

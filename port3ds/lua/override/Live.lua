@@ -56,6 +56,7 @@ end
 
 -- SetScenario(): transpiled decision logic; SetScenario<T>() / SetScenario(string) instantiate here
 local function instantiate(self, name)
+  LOG("[live] scenario", name, "day", StatusManager:GetStatus("DayIndex"))
   local sc = NEW(name)
   if sc == NULL then sc = NEW("TestScenario") end
   self.NowPlaying = sc

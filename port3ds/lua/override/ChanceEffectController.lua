@@ -15,6 +15,12 @@ function C:__fields()
   self.effect = nil    -- "Chainsaw", "Danger", ...
   self.state = nil     -- animator state
   self.t0 = 0
+  -- streams drive the effect through these (LiveScenario.Play: _current = obi, _anim = inout)
+  local me = self
+  self._current = core.RP.new(nil)
+  self._anim = core.RP.new(nil)
+  self._current:Subscribe(function(v) if v and v ~= NULL and v ~= "None" then me.effect = v end end)
+  self._anim:Subscribe(function(v) if v and v ~= NULL and v ~= "" then me:play(v) end end)
 end
 
 C.__getters.ChanceEffects = function() return core.List.new() end

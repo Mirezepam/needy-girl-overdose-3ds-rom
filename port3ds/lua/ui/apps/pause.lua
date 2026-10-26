@@ -17,33 +17,37 @@ local function st(id, fallback)
 end
 
 -- Control panel (ControllPanel button): volumes, stream speed, text skip, endings seen
-local function control_panel()
+local function control_panel(on_close)
   local x, y, w, h = T.window(10, 8, 300, 206, st("Start_Menu_Config", "Panel de control"), "icon_gear")
-  if T.close("cp_close") or I.pressed(I.KEY.B) then panel = false return end
+  if T.close("cp_close") or I.pressed(I.KEY.B) then
+    panel = false
+    if on_close then on_close() end
+    return
+  end
   G.rect(x, y, w, h, c.paper)
   local yy = y + 6
   local bgm = math.floor((AudioManager.bgmVolume or 0.8) * 10 + 0.5)
-  G.text("Música: " .. bgm, x + 8, yy + 6, c.ink)
+  G.text(T.tr({ es = "Música: ", en = "Music: ", ja = "BGM：" }) .. bgm, x + 8, yy + 6, c.ink)
   if T.button("p_bgm-", x + 150, yy, 40, 22, "-", { center = true }) then AudioManager:ChangeMasterVolume(math.max(0, (bgm - 1) / 10)) end
   if T.button("p_bgm+", x + 196, yy, 40, 22, "+", { center = true }) then AudioManager:ChangeMasterVolume(math.min(1, (bgm + 1) / 10)) end
   yy = yy + 28
   local se = math.floor((AudioManager.seVolume or 0.9) * 10 + 0.5)
-  G.text("Efectos: " .. se, x + 8, yy + 6, c.ink)
+  G.text(T.tr({ es = "Efectos: ", en = "Sound effects: ", ja = "効果音：" }) .. se, x + 8, yy + 6, c.ink)
   if T.button("p_se-", x + 150, yy, 40, 22, "-", { center = true }) then AudioManager.seVolume = math.max(0, (se - 1) / 10) end
   if T.button("p_se+", x + 196, yy, 40, 22, "+", { center = true }) then AudioManager.seVolume = math.min(1, (se + 1) / 10) end
   yy = yy + 28
   local sp = Settings.haishinSpeed or 0
-  G.text("Velocidad del directo: " .. (sp + 1), x + 8, yy + 6, c.ink)
-  if T.button("p_speed", x + 196, yy, 86, 22, "Cambiar", { center = true }) then
+  G.text(T.tr({ es = "Velocidad del directo: ", en = "Stream speed: ", ja = "配信スピード：" }) .. (sp + 1), x + 8, yy + 6, c.ink)
+  if T.button("p_speed", x + 196, yy, 86, 22, T.tr({ es = "Cambiar", en = "Change", ja = "変更" }), { center = true }) then
     Settings.haishinSpeed = (sp + 1) % 3
     spawn(function() Settings:Save() end)
   end
   yy = yy + 28
-  G.text("Saltar texto (SELECT): " .. (core.fast and "Sí" or "No"), x + 8, yy + 6, c.ink)
-  if T.button("p_fast", x + 196, yy, 86, 22, "Cambiar", { center = true }) then core.fast = not core.fast end
+  G.text(T.tr({ es = "Saltar texto (SELECT): ", en = "Skip text (SELECT): ", ja = "テキストスキップ（SELECT）：" }) .. (core.fast and T.tr({ es = "Sí", en = "On", ja = "ON" }) or T.tr({ es = "No", en = "Off", ja = "OFF" })), x + 8, yy + 6, c.ink)
+  if T.button("p_fast", x + 196, yy, 86, 22, T.tr({ es = "Cambiar", en = "Change", ja = "変更" }), { center = true }) then core.fast = not core.fast end
   yy = yy + 30
-  local seen = Settings.mitaEnd and Settings.mitaEnd:Distinct().Count or 0
-  G.text("Finales vistos: " .. seen .. " / 26", x + 8, yy + 4, c.lilacDark)
+  local seen, total = require("ui.apps.endingblue").progress()
+  G.text(T.tr({ es = "Finales vistos: ", en = "Endings seen: ", ja = "見たエンディング：" }) .. seen .. " / " .. total, x + 8, yy + 4, c.lilacDark)
 end
 
 -- returns true when the menu should close
@@ -74,4 +78,5 @@ function M.draw(close)
   return false
 end
 
+M.control_panel = control_panel
 return M

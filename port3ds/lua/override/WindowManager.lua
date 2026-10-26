@@ -13,11 +13,11 @@ local ROUTE = {
   Webcam = { "top", "webcam" }, WebcamMini = { "top", "webcam" },
   Jine = { "bottom", "jine" },
   Poketter = { "bottom", "poketter" }, Result = { "bottom", "poketter" }, EndingPoketter = { "bottom", "poketter" },
-  Uratter = { "bottom", "poketter" },
+  Uratter = { "bottom", "uraura" },
   TaskManager = { "top", "stats" }, TaskManagerforResult = { "top", "stats" }, TaskManagerForDebug = { "none" },
   Broadcast = { "both", "live" }, BroadcastMock = { "both", "live" }, LiveDark = { "both", "live" }, ManualHaishin = { "both", "live" },
   NetaChoose = { "bottom", "neta" },
-  GoOut = { "bottom", "odekake" }, Train = { "top", "train" }, Train_twilight = { "top", "train" },
+  GoOut = { "bottom", "gomenu" }, Train = { "top", "train" }, Train_twilight = { "top", "train" },
   Train_night = { "top", "train" }, Train_Ginga = { "top", "train" },
   Daypart0 = { "top", "daypart" }, Daypart1 = { "top", "daypart" }, Daypart2 = { "top", "daypart" }, Daypart3 = { "top", "daypart" },
   TimePassDialog = { "bottom", "dialog" }, ShutDownDialog = { "bottom", "dialog" }, RebootDialog = { "bottom", "dialog" },
@@ -28,29 +28,30 @@ local ROUTE = {
   MyDocument = { "bottom", "doc" }, TextEditor = { "bottom", "doc" }, Mail = { "bottom", "doc" }, YachinMail = { "bottom", "doc" },
   CrashMail = { "bottom", "doc" }, CrashNakami = { "fx", "crash" }, Sticky = { "bottom", "doc" }, Calendar = { "bottom", "doc" },
   Calling = { "both", "calling" },
-  Hakkyo = { "fx", "hakkyo" }, Medama = { "fx", "medama" }, medamaImage = { "fx", "medama" }, Die = { "fx", "die" },
-  LastEnd = { "fx", "die" }, Darkness = { "fx", "darkness" }, BrowserCrasher = { "fx", "crash" },
-  Ideon_taiki = { "fx", "ideon" }, Ideon_2ch = { "fx", "ideon" }, Ideon_hutaba = { "fx", "ideon" }, Ideon_nico = { "fx", "ideon" },
-  Ideon_news = { "fx", "ideon" }, Ideon_Insta = { "fx", "ideon" }, Ideon_wiki = { "fx", "ideon" }, Ideon_webcam = { "fx", "ideon" },
+  Hakkyo = { "bottom", "dialog" }, Medama = { "fx", "medama" }, medamaImage = { "fx", "medama" }, Die = { "bottom", "dialog" },
+  LastEnd = { "fx", "die" }, Darkness = { "bottom", "wristcut" }, BrowserCrasher = { "fx", "crash" },
+  Ideon_taiki = { "both", "ideon" }, Ideon_2ch = { "bottom", "ideon" }, Ideon_hutaba = { "bottom", "ideon" }, Ideon_nico = { "bottom", "ideon" },
+  Ideon_news = { "bottom", "ideon" }, Ideon_Insta = { "bottom", "ideon" }, Ideon_wiki = { "bottom", "ideon" }, Ideon_webcam = { "top", "webcam" },
   Sleep = { "top", "sleep" },
   Internet = { "bottom", "tasks" }, Keijiban = { "bottom", "internet" }, KeijibanMini = { "bottom", "internet" },
   EgosaResult = { "bottom", "internet" }, Entame = { "bottom", "tasks" }, Asobu = { "bottom", "tasks" },
   AsobuNeedy = { "bottom", "tasks" }, AsobuLust = { "bottom", "tasks" }, Pills = { "bottom", "tasks" },
   PillDypass = { "bottom", "tasks" }, PillPuron = { "bottom", "tasks" }, PillHipron = { "bottom", "tasks" },
   PillHappa = { "bottom", "tasks" }, PillPsyche = { "bottom", "tasks" }, PillPuron_Horror = { "bottom", "tasks" },
-  Dinder = { "bottom", "internet" }, Bank = { "bottom", "doc" }, Yakujo = { "bottom", "doc" },
+  Dinder = { "bottom", "internet" }, Bank = { "top", "bank" }, Yakujo = { "bottom", "doc" },
   Login = { "bottom", "login" }, LoadData = { "bottom", "login" },
   MyPicture = { "both", "pictures" }, ImageViewer = { "both", "pictures" },
   ControlPanel = { "bottom", "settings" }, PsycheNikki1 = { "bottom", "doc" }, PsycheNikki2 = { "bottom", "doc" },
   PsycheNikki3 = { "bottom", "doc" }, PsycheNikki4 = { "bottom", "doc" }, FirstDiary = { "bottom", "doc" }, HintTextAfterEnding = { "bottom", "doc" },
   App_Ending_Grand = { "both", "ending" }, App_Ending_Netshut = { "both", "ending" },
-  Ideon_hutaba_ = { "fx", "ideon" }, Test = { "none" }, None = { "none" },
+  Ideon_hutaba_ = { "bottom", "ideon" }, Test = { "none" }, None = { "none" },
 }
 
 local Window = {}
 Window.__index = function(t, k)
   if k == "windowState" then return t._state end
-  if k == "nakami" or k == "gameObject" then return t end
+  if k == "nakami" or k == "gameObject" or k == "nakamiApp" then return t end
+  if k == "GetComponentInChildren" then return Window.GetComponent end
   return Window[k] or NULL
 end
 
@@ -179,7 +180,7 @@ function C:DieOut() self:CleanAll() end
 function C:LoveOut() self:CleanAll() end
 
 -- window shown on the top screen right now (highest priority)
-local TOP_PRIORITY = { video = 9, ideon = 8, train = 7, daypart = 6, sleep = 6, live = 5, calling = 4, doc = 3, pictures = 3, ending = 3, stats = 1, webcam = 0 }
+local TOP_PRIORITY = { video = 9, bank = 9, ideon = 8, train = 7, daypart = 6, sleep = 6, live = 5, calling = 4, doc = 3, pictures = 3, ending = 3, stats = 1, webcam = 0 }
 function C:topWindow()
   local best, bp
   for _, w in EACH(self.windows) do

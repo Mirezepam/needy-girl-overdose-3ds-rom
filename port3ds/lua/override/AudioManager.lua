@@ -74,7 +74,11 @@ C.Stop = C.StopByType
 function C:StopAll() self:StopBgm() end
 function C:IsPlayingByType(t) return self.currentBgm == t end
 function C:IsPlaying() return self.currentBgm ~= nil end
-C.__getters.PlayingBgm = function(self) return self.currentBgm end
+-- the original is a ReactiveProperty<Audio>; game code reads PlayingBgm.Value.Sound.Id
+C.__getters.PlayingBgm = function(self)
+  local cur = self.currentBgm
+  return { Value = cur and { Sound = { Id = cur }, Source = { isPlaying = true } } or nil }
+end
 function C:ChangeMasterVolume(v) self.bgmVolume = v; sys.bgm_volume(v) end
 function C:ChangeSeVolume(v) self.seVolume = v end
 function C:ChangeVolume(cat, v) if tostring(cat):find("BGM") then self:ChangeMasterVolume(v) else self.seVolume = v end end

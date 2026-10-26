@@ -99,6 +99,8 @@ bool audio_init(void) {
     return true;
 }
 
+bool audio_ok(void) { return ndspOk; }
+
 void audio_exit(void) {
     if (!ndspOk) return;
     bgmQuit = true;

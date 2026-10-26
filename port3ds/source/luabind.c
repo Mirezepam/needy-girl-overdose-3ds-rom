@@ -73,6 +73,7 @@ static int l_clear_color(lua_State *L) {
 }
 
 static int l_bgm_play(lua_State *L) { lua_pushboolean(L, audio_bgm_play(luaL_checkstring(L, 1), lua_toboolean(L, 2))); return 1; }
+static int l_audio_ok(lua_State *L) { lua_pushboolean(L, audio_ok()); return 1; }
 static int l_bgm_stop(lua_State *L) { (void)L; audio_bgm_stop(); return 0; }
 static int l_bgm_volume(lua_State *L) { audio_bgm_volume(luaL_checknumber(L, 1)); return 0; }
 static int l_bgm_pos(lua_State *L) { lua_pushnumber(L, audio_bgm_position()); return 1; }
@@ -177,7 +178,7 @@ int luaopen_sys(lua_State *L) {
         {"tex_load", l_tex_load}, {"tex_free", l_tex_free}, {"draw", l_draw}, {"rect", l_rect},
         {"text", l_text}, {"measure", l_measure}, {"line_height", l_line_height}, {"scissor", l_scissor},
         {"clear_color", l_clear_color},
-        {"bgm_play", l_bgm_play}, {"bgm_stop", l_bgm_stop}, {"bgm_volume", l_bgm_volume}, {"bgm_pos", l_bgm_pos},
+        {"audio_ok", l_audio_ok}, {"bgm_play", l_bgm_play}, {"bgm_stop", l_bgm_stop}, {"bgm_volume", l_bgm_volume}, {"bgm_pos", l_bgm_pos},
         {"se_load", l_se_load}, {"se_free", l_se_free}, {"se_play", l_se_play},
         {"video_open", l_video_open}, {"video_show", l_video_show}, {"video_draw", l_video_draw}, {"video_close", l_video_close},
         {"read", l_read}, {"write", l_write}, {"exists", l_exists}, {"mkdir", l_mkdir}, {"remove", l_remove},

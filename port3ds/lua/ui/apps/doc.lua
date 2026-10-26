@@ -2,6 +2,7 @@
 -- where the game keeps the bodies of its mails, diaries and text files.
 local core = require("runtime.core")
 local G = require("runtime.gfx")
+local I = require("runtime.input")
 local T = require("ui.theme")
 local c = T.c
 
@@ -48,7 +49,7 @@ local function content(win)
   -- windows answer unknown fields with NULL (for the game's scripts): read our own fields raw
   local text = rawget(win, "text")
   if text then return rawget(win, "title") or win.app, text end
-  if win.app == "Yakujo" then return "Prospecto", yakujo_text() end
+  if win.app == "Yakujo" then return T.tr(T.YAKUJO_TITLE), yakujo_text() end
   local d = DOCS[win.app]
   if d then
     local body = {}
@@ -65,11 +66,18 @@ function M.draw(win, x0, y0, w0, h0)
     WindowManager:Close(win) return
   end
   G.rect(x, y, w, h, c.white)
+  -- App_Mail: the PostPet envelope; the letter itself is the YachinMail window (tap opens it)
+  if win.app == "Mail" then
+    local pulse = 1 + math.sin(core.now() * 4) * 0.03
+    G.draw("icon_window_mail", x + w / 2, y + h / 2, { ax = 0.5, ay = 0.5, fit = { 250 * pulse, 150 * pulse } })
+    if I.tapped(x, y, w, h) then WindowManager:NewWindow_2("YachinMail") end
+    return
+  end
   local _, th = G.measure(text, 1, w - 14)
   if scroll.win ~= win then scroll.win, scroll.y = win, 0 end
   local sy = T.scroller(scroll, x, y, w, h, th + 8)
   G.clip(x, y, w, h)
-  G.text(text, x + 4, y + 4 - sy, c.ink, 1, w - 14)
+  G.text(text, x + 4, y + 4 - sy, 0x1303a6ff, 1, w - 14)
   G.unclip()
 end
 

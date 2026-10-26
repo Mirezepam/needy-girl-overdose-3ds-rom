@@ -47,13 +47,17 @@ function core.make_component(go, t)
     if k == "gameObject" then return go end
     if POINTER[k] then
       return function(self)
-        self.__subjects = self.__subjects or {}
-        local s = self.__subjects[POINTER[k]]
-        if not s then s = core.Subject.new(); self.__subjects[POINTER[k]] = s end
+        -- rawget: __index answers NULL for unknown fields
+        local subs = rawget(self, "__subjects")
+        if not subs then subs = {}; rawset(self, "__subjects", subs) end
+        local s = subs[POINTER[k]]
+        if not s then s = core.Subject.new(); subs[POINTER[k]] = s end
         return s
       end
     end
-    if k == "GetComponent" then return function(_, tt) return go:GetComponent(tt) end end
+    if k == "GetComponent" or k == "GetComponentInChildren" then return function(_, tt) return go:GetComponent(tt) end end
+    -- DOTween text: the text appears at once (the UI types it out from .text)
+    if k == "DOText" then return function(self, text) rawset(self, "text", text); rawset(self, "_t0", core.now and core.now() or 0); return NULL end end
     return NULL
   end })
   for k, v in pairs(COMPONENT_DEFAULTS[t] or {}) do comp[k] = v end
@@ -96,11 +100,27 @@ end
 core.ui_objects = {}
 core.ui_defaults = {
   LoginShortCut = { CanvasGroup = { alpha = 0, interactable = false, blocksRaycasts = false } },
+  -- horror day 4 desktop, hidden until Scenario_horror_day4_day shows it
+  HakkyoShortCutParent = { CanvasGroup = { alpha = 0, interactable = false, blocksRaycasts = false } },
 }
+-- scene objects that start inactive until the story activates them
+core.ui_inactive = { liveend = true }
+-- Transform of a named scene object: Find(child) reaches the named child object, gameObject the
+-- owner; anything else is absorbed (positions, tweens)
+local TransformT = {}
+TransformT.__index = function(t, k)
+  if k == "gameObject" then return rawget(t, "_go") end
+  return TransformT[k] or NULL
+end
+function TransformT:Find(child) return core.ui_find(child).transform end
+function TransformT:GetChild() return NULL end
+
 function core.ui_find(name)
   local o = core.ui_objects[name]
   if not o then
     o = GameObject.new(name)
+    rawset(o, "_transform", setmetatable({ _go = o }, TransformT))
+    if core.ui_inactive[name] then rawset(o, "_active", false) end
     core.ui_objects[name] = o
   end
   return o
@@ -155,6 +175,7 @@ function UObject.Destroy(obj) if type(obj) == "table" and obj ~= NULL and obj.__
 UObject.DestroyImmediate = UObject.Destroy
 function UObject.FindObjectOfType(t) local c = classes[t]; return (c and c.__singleton) and c or NULL end
 function UObject.FindObjectsOfType() return List.new() end
+function UObject.FindObjectsByType() return List.new() end
 function UObject.DontDestroyOnLoad() end
 MB.Instantiate = UObject.Instantiate
 MB.Destroy = UObject.Destroy

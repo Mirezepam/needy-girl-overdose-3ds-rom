@@ -8,8 +8,10 @@ local c = T.c
 local M = {}
 local anim = { name = "stream_ame_idle", t0 = 0 }
 local stats = {}          -- type -> {value, shown, diff, flash}
-local HUD_STATS = { { "Follower", "Seg", 0xffffffff }, { "Love", "Cariño", 0xffa8d8ff },
-                    { "Stress", "Estrés", 0xffb070ff }, { "Yami", "Mente", 0xc8a0ffff } }
+local HUD_STATS = { { "Follower", { es = "Seg", en = "Subs", ja = "登録" }, 0xffffffff },
+                    { "Love", { es = "Cariño", en = "Love", ja = "好感" }, 0xffa8d8ff },
+                    { "Stress", { es = "Estrés", en = "Stress", ja = "ストレス" }, 0xffb070ff },
+                    { "Yami", { es = "Mente", en = "Dark", ja = "闇" }, 0xc8a0ffff } }
 local graph_sample          -- (TaskManager graphs, defined below)
 local video = nil         -- {id, fps, frames, t0, w, h, app}
 local live
@@ -140,7 +142,7 @@ local function draw_hud()
   local dp = daypart_sprite()
   G.draw("icon_watch_" .. dp, 3, 1, { fit = { 12, 12 } })
   local dtext = NgoEx.DayText(day, lang())
-  if dtext == NULL or dtext == nil or dtext == "" then dtext = "Día " .. day end
+  if dtext == NULL or dtext == nil or dtext == "" then dtext = T.st("Day_Live", "DÍA") .. " " .. day end
   G.text(dtext, 17, 2, c.white)
   local x = 96
   for _, s in ipairs(HUD_STATS) do
@@ -149,8 +151,9 @@ local function draw_hud()
       local since = core.now() - st.flash
       local col = c.white
       if since < 2.5 then col = (st.diff > 0) and c.mint or c.red end
-      local lw = G.measure(s[2])
-      G.text(s[2], x, 2, 0xb8aee0ff)
+      local label = T.tr(s[2])
+      local lw = G.measure(label)
+      G.text(label, x, 2, 0xb8aee0ff)
       local txt = s[1] == "Follower" and fmt_num(st.value) or tostring(st.value)
       G.text(txt, x + lw + 4, 2, since < 2.5 and col or s[3])
       if since < 2.5 then
@@ -217,6 +220,63 @@ function graph_sample()
   end
 end
 
+-- Outing map (Odekake): odekake_map_base with a building per destination the menu offers and
+-- the pin over the one under the stylus. Positions follow Tokyo's geography on the base map
+-- (Yamanote loop, bay at the bottom right): the original layout prefab is not available.
+local MAP_SPOTS = {
+  OdekakeKichijoji = { "kichijoji", 22, 112 }, OdekakeNakano = { "nakano", 86, 182 },
+  OdekakeShinjuku = { "shinjyuku", 160, 118 }, OdekakeIkebukuro = { "ikebukuro", 250, 58 },
+  OdekakeHarajuku = { "harajyuku", 196, 210 }, OdekakeShibuya = { "shibuya", 206, 250 },
+  OdekakeShimokitazawa = { "shimokitazawa", 104, 286 }, OdekakeIchigaya = { "ichigaya", 288, 150 },
+  OdekakeJinbocho = { "jimbocho", 352, 196 }, OdekakeUeno = { "ueno", 446, 168 },
+  OdekakeAkihabara = { "akihabara", 420, 212 }, OdekakeAsakusa = { "asakusa", 478, 128 },
+  OdekakeOdaiba = { "odaiba", 418, 318 }, OdekakeToyosu = { "toyosu", 478, 304 },
+  OdekakeHospital = { "hospital", 318, 238 }, OdekakeZikka = { "jikka", 26, 30 },
+  OdekakeGinga = { "galaxy_station", 236, 6 }, OdekakeHikarigaokaPark = { nil, 290, 38 },
+  OdekakeGisneyland = { nil, 486, 236 },
+}
+local function draw_outing_map(hover)
+  local s = 348 / 524
+  local ox, oy = 26, 14 + (226 - 356 * s) / 2
+  G.rect(26, 14, 348, 226, 0x86c06eff)
+  G.draw("odekake_map_base", ox, oy, { scale = s })
+  local avail = require("ui.bottom").visible_actions or {}
+  for a, sp in pairs(MAP_SPOTS) do
+    if avail[a] and sp[1] then G.draw("odekake_map_" .. sp[1], ox + sp[2] * s, oy + sp[3] * s, { scale = s * 1.4 }) end
+  end
+  local sp = hover and MAP_SPOTS[hover]
+  if sp then
+    local bob = math.sin(core.now() * 6) * 2
+    G.draw("odekake_map_pin", ox + sp[2] * s + 6, oy + sp[3] * s - 14 + bob, { scale = 1 })
+    local title = CommandHelper.GetCommandTitle_3(hover, lang())
+    if title and title ~= NULL then
+      local tw = G.measure(title)
+      T.panel(200 - tw / 2 - 8, 214, tw + 16, 18, c.white)
+      G.text_center(title, 200, 217, c.ink)
+    end
+  end
+end
+
+-- package insert of a drug (YakujoUnit: name, dose, effects, side effects, Ame's memo), pink
+-- headings (#e992c8) over ink text, like the right half of the App_Kusuri* windows
+local function draw_insert(key)
+  local function y(k) local v = NgoEx.yakujo(key, k, lang()); return (v ~= NULL and v) or "" end
+  local function head(k) local v = NgoEx.yakujo("midasi", k, lang()); return (v ~= NULL and v) or k end
+  local x0, y0, w0, h0 = T.window(60, 20, 280, 214, T.tr(T.YAKUJO_TITLE), "icon_desktop_okusuri")
+  G.rect(x0, y0, w0, h0, c.white)
+  local yy = y0 + 4
+  G.text(y("namae"), x0 + 6, yy, c.ink, 1, w0 - 12, 2)
+  yy = yy + 18
+  for _, k in ipairs({ "tekiryo", "kounou", "hukusayou", "memo" }) do
+    local body = y(k)
+    if body ~= "" then
+      G.text(head(k), x0 + 6, yy, 0xe992c8ff)
+      local th = G.text(body, x0 + 6, yy + 12, c.ink, 1, w0 - 12, 3)
+      yy = yy + 16 + math.max(12, th)
+    end
+  end
+end
+
 local function draw_stats_panel()
   local title = NgoEx.SystemTextFromType("Window_TaskManager", lang())
   if title == NULL or title == "" then title = "Administrador de tareas" end
@@ -228,14 +288,15 @@ local function draw_stats_panel()
     local yy = y + 2 + (i - 1) * 24
     G.draw(r[2], x + 2, yy, { fit = { 20, 20 } })
     local label = NgoEx.StatusLabelFromType(r[1], lang())
-    G.text((label ~= NULL and label ~= "") and label or r[1], x + 26, yy, c.sky, 1, 120, 1)
+    G.text((label ~= NULL and label ~= "") and label or r[1], x + 26, yy, c.sky, 1, w - 28, 1)
     if r[1] == "Follower" then
       G.text(fmt_num(v), x + 26, yy + 11, c.ink)
     else
       G.text(tostring(v), x + 26, yy + 11, c.ink)
       G.text("/" .. max, x + 50, yy + 11, 0x999999ff)
       -- history graph
-      local gx, gy, gw, gh = x + 86, yy + 2, w - 88, 19
+      -- below the label line, so long labels ("Estado mental") stay readable
+      local gx, gy, gw, gh = x + 86, yy + 11, w - 88, 11
       G.rect(gx, gy, gw, gh, 0xddbeedff)
       local hist = graph[r[1]] or {}
       local bw = gw / 30
@@ -266,9 +327,10 @@ local function draw_scene(w)
     local a = math.min(1, (core.now() - w.opened) / 1.5)
     G.rect(26, 14, 348, 226, math.floor(a * 230))
   elseif k == "calling" then
-    G.rect(26, 14, 348, 226, 0xf7e6ffff)
-    G.draw("bg_line_call", 200, 127, { ax = 0.5, ay = 0.5, fit = { 300, 220 } })
-    G.draw("icon_jine_ame", 200, 100, { ax = 0.5, ay = 0.5, scale = 2 })
+    -- App_JINECall: black screen with the bg_line_call art (avatar, dots, answer / decline)
+    G.rect(0, 0, 400, 240, 0x000000ff)
+    G.draw("bg_line_call", 200, 120, { ax = 0.5, ay = 0.5, fit = { 400, 236 } })
+    return true
   elseif k == "video" then
     G.rect(0, 0, 400, 240, 0x000000ff)
     if video and video.id then
@@ -282,6 +344,22 @@ local function draw_scene(w)
   elseif k == "live" then
     live.draw_top()
     return true
+  elseif k == "ending" then
+    return require("ui.bottom").app_module("ending").draw_top()
+  elseif k == "bank" then
+    -- App_BankView: the stream opening animation (BankAnimation, English art outside Japanese,
+    -- the black variant for the dark angel)
+    local name = Settings.CurrentLanguage.Value == "JP" and "BankAnimation" or "BankAnimation_Eng"
+    if (EventManager.alpha == "Angel" and EventManager.alphaLevel == 6) or EventManager.nowEnding == "Ending_DarkAngel" then
+      name = name .. "_B"
+    end
+    G.rect(0, 0, 400, 240, 0xffffffff)
+    G.play(name, core.now() - w.opened, 200, 120, { ax = 0.5, ay = 0.5, fit = { 400, 240 } })
+    local skip = "▶SKIP"
+    G.text(skip, 396 - G.measure(skip), 4, 0x4d22cf6f)
+    return true
+  elseif k == "ideon" then
+    return require("ui.bottom").app_module("ideon").draw_top()
   elseif k == "pictures" then
     local img = rawget(w, "image") or (core.views.ImageViewer and core.views.ImageViewer.current)
     G.rect(26, 14, 348, 226, 0x000000ff)
@@ -290,7 +368,8 @@ local function draw_scene(w)
   return false
 end
 
-local function draw_toast()
+local function draw_toast(ty)
+  ty = ty or 20
   local items = NotificationManager.items
   if not items or #items == 0 then return end
   local n = items[#items]
@@ -298,9 +377,9 @@ local function draw_toast()
   if age > 4 then return end
   local slide = math.min(1, age * 4)
   local x = 400 - 190 * slide
-  T.panel(x, 20, 182, 34, c.ame)
-  G.draw(n.app == "Jine" and "icon_taskbar_jine" or (n.app == "Poketter" and "icon_taskbar_poketter" or "icon_window_mail"), x + 4, 25, { fit = { 22, 22 } })
-  G.text(n.text, x + 30, 24, c.ink, 1, 148, 2)
+  T.panel(x, ty, 182, 34, c.ame)
+  G.draw(n.app == "Jine" and "icon_taskbar_jine" or (n.app == "Poketter" and "icon_taskbar_poketter" or "icon_window_mail"), x + 4, ty + 5, { fit = { 22, 22 } })
+  G.text(n.text, x + 30, ty + 4, c.ink, 1, 148, 2)
 end
 
 local function draw_tooltip()
@@ -348,21 +427,41 @@ end
 function M.draw()
   if not StatusManager.statuses then G.rect(0, 0, 400, 240, 0x000000ff) return end
   G.begin_frame()
+  local blue = require("ui.bottom").app_module("endingblue")
+  if blue.active() then blue.draw_top() return end
+  local meta = require("ui.bottom").app_module("metacover")
+  if meta.active() then meta.draw_top() return end
   local tw = WindowManager:topWindow()
   local full = false
   draw_sidebars()
   draw_webcam()
   if tw and tw.kind ~= "webcam" and tw.kind ~= "stats" then full = draw_scene(tw) end
+  local bmenu, bhover = require("ui.bottom").current_menu()
+  if not full and bmenu == "odekake" then draw_outing_map(bhover) end
+  local B = require("ui.bottom")
+  if not full and bmenu == "okusuri" and B.drug_shown then draw_insert(B.drug_shown) end
   -- the focused bottom app can show its visual content up here (tweet pictures, documents...)
   local fb = WindowManager.focusBottom
   local fmod = fb and require("ui.bottom").app_module(fb.kind)
   if not full and fmod and fmod.draw_top then fmod.draw_top(fb) end
   if not full then draw_hud() end
-  if tw and tw.kind == "stats" and core.now() - tw.opened < 3 then draw_stats_panel() end
+  local stats_shown = false
+  if tw and tw.kind == "stats" and core.now() - tw.opened < 3 then draw_stats_panel(); stats_shown = true end
   local stw = WindowManager:find("TaskManager")
-  if stw and stw ~= tw and core.now() - stw.opened < 3 then draw_stats_panel() end
+  if stw and stw ~= tw and core.now() - stw.opened < 3 then draw_stats_panel(); stats_shown = true end
   draw_effects()
-  draw_toast()
+  draw_toast(stats_shown and 150 or 20)   -- below the Task Manager panel while it shows
+  -- Poem cover (Megaten, horror day 4): dark screen with the poem typed in the middle
+  local ptext, pa
+  if Poem.visible_text then ptext, pa = Poem.visible_text() end
+  if pa and pa > 0 then
+    G.rect(0, 0, 400, 240, math.floor(pa * 0xe8))
+    for _ = 1, 4 do G.rect(math.random(0, 380), math.random(0, 236), math.random(20, 120), 1, 0xffffff00 | math.floor(pa * 40)) end
+    if ptext and ptext ~= "" then
+      local _, th = G.measure(ptext, 1, 340)
+      G.text(ptext, 30, 120 - th / 2, 0xffffff00 | math.floor(pa * 255), 1, 340)
+    end
+  end
   draw_tooltip()
 end
 

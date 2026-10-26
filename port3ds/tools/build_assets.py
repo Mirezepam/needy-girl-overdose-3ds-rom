@@ -333,6 +333,14 @@ def build_text():
                         used_chars[lang].update(txt)
                 plain_rows.append(plain)
             data[table] = plain_rows
+    # translation slips in the original tables (e.g. the Spanish WristGO is the French "VAS-Y !")
+    TEXT_FIXES = {"es": {"WristGO": "¡VAMOS!"}}
+    for lang, fixes in TEXT_FIXES.items():
+        for fields in texts[lang].values():
+            for rows in fields.values():
+                for rid, txt in fixes.items():
+                    if rid in rows:
+                        rows[rid] = txt
     out = mkdir("text")
     for lang, tables in texts.items():
         with open(os.path.join(out, f"{lang}.lua"), "w", encoding="utf-8") as f:
@@ -369,7 +377,13 @@ def build_font():
     if not os.path.exists(chars_file):
         build_text()
     chars = set("".join(json.load(open(chars_file, encoding="utf-8")).values()))
-    chars |= set(chr(c) for c in range(32, 127)) | set("áéíóúüñÁÉÍÓÚÜÑ¿¡…「」『』、。・♥♡★☆→←↑↓○×")
+    chars |= set(chr(c) for c in range(32, 127)) | set("áéíóúüñÁÉÍÓÚÜÑ¿¡…「」『』、。・♥♡★☆→←↑↓○×◀▶◆■▼↻")
+    # every character the port's own UI code writes (labels, buttons like "◀", port-only strings)
+    for sub in ("ui", "override", "runtime"):
+        for root, _, files in os.walk(os.path.join(HERE, "..", "lua", sub)):
+            for fn in files:
+                if fn.endswith(".lua"):
+                    chars |= set(open(os.path.join(root, fn), encoding="utf-8", errors="ignore").read())
     fonts_dir = os.path.join(ASSETS, "Font")
     chain = [("PixelMplus10-Regular.ttf", 10), ("DinkieBitmap-9px.ttf", 9), ("zpix.ttf", 12)]
     SS = 10

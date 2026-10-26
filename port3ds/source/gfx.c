@@ -1,5 +1,6 @@
 // Rendering on both screens with citro2d: GPU textures in the NTX1 format produced by
 // tools/build_assets.py (already tiled + flipped), sprite drawing and a bitmap font.
+#include <math.h>
 #include "engine.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -130,7 +131,7 @@ static void draw_tex(C3D_Tex *tex, float tw, float th, float sx, float sy, float
     if (angle != 0.0f) {
         C2D_DrawImageAtRotated(img, dx + sw * scx / 2, dy + sh * scy / 2, 0.5f, angle, &t, scx, scy);
     } else {
-        C2D_DrawImageAt(img, dx, dy, 0.5f, &t, scx, scy);
+        C2D_DrawImageAt(img, floorf(dx + 0.5f), floorf(dy + 0.5f), 0.5f, &t, scx, scy);
     }
 }
 
@@ -271,7 +272,9 @@ float font_draw(const char *s, float x, float y, u32 rgba, float scale, float wr
         if (cp == ' ' && cx == x && line > 1) continue;  // no leading space after wrap
         const Glyph *g = find_glyph(cp);
         if (g && !measureOnly && tex && cp != ' ')
-            draw_tex(tex, tex->width, tex->height, g->x, g->y, cellW, cellH, cx, cy - 2 * scale, scale, scale, alpha, rgba, 1.0f, 0);
+            // snapped to whole pixels: nearest sampling at x.5 picks texels inconsistently and garbles glyphs
+            draw_tex(tex, tex->width, tex->height, g->x, g->y, cellW, cellH, floorf(cx + 0.5f), floorf(cy - 2 * scale + 0.5f),
+                     scale, scale, alpha, rgba, 1.0f, 0);
         cx += (cp == ' ' ? cellW / 2.5f : (g ? g->adv : cellW / 2)) * scale;
     }
     if (cx - x > maxW) maxW = cx - x;

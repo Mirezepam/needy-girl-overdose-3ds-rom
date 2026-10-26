@@ -1,66 +1,102 @@
-# NEEDY GIRL OVERDOSE 3DS (port de fans)
+# NEEDY GIRL OVERDOSE 3DS (fan port)
 
-Port homebrew para Nintendo 3DS / 2DS que usa las dos pantallas: arriba la webcam de Ame y el
-stream, abajo el escritorio Windose táctil. El juego incluye textos en español, inglés y japonés.
+*[Leer en español](README.es.md)*
 
-> **No incluye nada del juego original.** La carpeta de datos se genera a partir de tu propia copia
-> de Steam y es solo para uso personal. No la compartas.
+A homebrew port of NEEDY GIRL OVERDOSE for Nintendo 3DS / 2DS that uses both screens: the top
+screen shows Ame's webcam and the stream, and the bottom screen is the touch-driven Windose
+desktop. Texts are available in Spanish, English and Japanese.
 
-## Instalar en la consola
+> **No original game data is distributed.** The data folder is generated from your own Steam copy
+> and is for personal use only. Do not share it.
 
-1. Necesitas una 3DS con [homebrew](https://3ds.hacks.guide/) (Homebrew Launcher) y el firmware
-   del DSP volcado (`sdmc:/3ds/dspfirm.cdc`, se crea con *DSP1*) para que haya sonido.
-2. Copia `needy3ds.3dsx` a `sdmc:/3ds/`.
-3. Copia la carpeta `build_data/needy3ds/` entera a `sdmc:/3ds/needy3ds/` (unos 700 MB).
-4. Abre *NEEDY GIRL OVERDOSE 3DS* desde el Homebrew Launcher.
+## How it works
 
-En el emulador Azahar: `Archivo → Cargar archivo…` → `needy3ds.3dsx`, con la carpeta de datos en
-`%APPDATA%\Azahar\sdmc\3ds\needy3ds\`.
+- **C engine** (`source/`): citro2d rendering on both screens, touch and buttons, NDSP audio (Ogg
+  streaming for music, cached PCM for sound effects), ETC1 + LZ4 video playback, and an embedded
+  Lua 5.4 interpreter.
+- **Game logic** (`lua/gen/`): the original C# scripts translated to Lua by `tools/cs2lua`.
+- **Runtime and overrides** (`lua/runtime/`, `lua/override/`): a small Unity-like runtime
+  (coroutines, timers, reactive properties, saves) and hand-written replacements for the Unity
+  classes that are tied to the original UI (windows, audio, live stream, effects).
+- **UI** (`lua/ui/`): the Windose desktop and every app (JINE, Poketter, streams, documents,
+  endings, settings...) redrawn for 400×240 + 320×240 with the original art.
 
-## Controles
+## Install on a console
 
-| Acción | Táctil | Botones |
+1. You need a 3DS with [homebrew](https://3ds.hacks.guide/) (Homebrew Launcher) and the dumped DSP
+   firmware (`sdmc:/3ds/dspfirm.cdc`, created with *DSP1*). Without it the game runs silent and the
+   title screen shows a warning.
+2. Copy `needy3ds.3dsx` to `sdmc:/3ds/`.
+3. Copy the whole `build_data/needy3ds/` folder to `sdmc:/3ds/needy3ds/` (about 850 MB).
+4. Launch *NEEDY GIRL OVERDOSE 3DS* from the Homebrew Launcher.
+
+On the Azahar emulator: `File → Load File…` → `needy3ds.3dsx`, with the data folder in
+`%APPDATA%\Azahar\sdmc\3ds\needy3ds\`. With HLE audio emulation any file named
+`sdmc:/3ds/dspfirm.cdc` is enough to enable sound.
+
+## Controls
+
+| Action | Touch | Buttons |
 |---|---|---|
-| Elegir / pulsar | Tocar | Cruceta + **A** |
-| Avanzar diálogo | Tocar en cualquier sitio | **A** |
-| **Saltar texto** (avance rápido) | Botón `>>` de la barra de tareas | **SELECT** |
-| Cerrar app / volver | Botón `x` | **B** |
-| Cambiar de app | Barra de tareas | **L / R** |
-| JINE / Poketter | Iconos | **Y / X** |
-| Menú (volumen, guardar, idioma, salir) | Botón *Menú* | **START** |
-| Ver la descripción de un comando | Mantener pulsado | — |
-| Stream: recoger super chat | Tocar el comentario de color | Cruceta + **A** |
-| Stream: borrar comentario | Tocarlo o deslizar a la izquierda | Cruceta + **A** |
-| Stream: pausar | Mantener el dedo sobre el chat | — |
-| Stream: velocidad / saltar | — | **R**, **L** / **SELECT** |
-| Acariciar a Ame | Frotar su cabeza en la pantalla inferior | **A** |
-| Medidor de rendimiento | — | **L + R + SELECT** |
+| Select / press | Tap | D-pad + **A** |
+| Advance dialogue | Tap anywhere | **A** |
+| **Skip text** (fast-forward) | `>>` button on the taskbar | **SELECT** |
+| Close app / back | `x` button | **B** |
+| Switch app | Taskbar | **L / R** |
+| JINE / Poketter | Icons | **Y / X** |
+| Start menu (My Pictures, Control Panel, Restart, Shut down) | *Start* button on the taskbar | **START** |
+| Task Manager (stats and graphs) | Taskbar icon | — |
+| Show a command's description | Touch and hold | — |
+| Stream: pick a super chat | Tap the coloured comment | D-pad + **A** |
+| Stream: delete a comment | Tap it or swipe left | D-pad + **A** |
+| Stream: pause | Keep your finger on the chat | — |
+| Stream: speed / skip | *Stream pace* / *▶SKIP* buttons | **R**, **L** / **SELECT** |
+| Stream: next line | — | **A** |
+| Pet Ame | Rub her head on the bottom screen | **A** |
+| Performance overlay | — | **L + R + SELECT** |
 
-## Generar los datos y compilar (PC)
+## Building the data and the executable (PC)
 
-Requisitos: el juego de Steam instalado, Python 3, .NET SDK y devkitPro (3ds-dev).
+Requirements: the Steam version of the game, Python 3, the .NET SDK and devkitPro (3ds-dev).
 
 ```bash
-# 1. extraer los assets del juego (UnityPy)
-tools/.venv/Scripts/python -I tools/extract_assets.py "<juego>/Windose_Data" ../assets
-tools/.venv/Scripts/python -I tools/extract_pass2.py "<juego>/Windose_Data" ../assets
-# 2. traducir el código del juego a Lua
-tools/cs2lua/bin/Release/net10.0/cs2lua.exe ../code/Assembly-CSharp "<juego>/Windose_Data/Managed" lua
-# 3. convertir assets al formato de la 3DS
+# 1. extract the game assets (UnityPy)
+tools/.venv/Scripts/python -I tools/extract_assets.py "<game>/Windose_Data" ../assets
+tools/.venv/Scripts/python -I tools/extract_pass2.py "<game>/Windose_Data" ../assets
+# 2. translate the game code to Lua
+tools/cs2lua/bin/Release/net10.0/cs2lua.exe ../code/Assembly-CSharp "<game>/Windose_Data/Managed" lua
+# 3. convert the assets to 3DS formats
 tools/.venv/Scripts/python -I tools/build_assets.py ../assets build_data
-tools/.venv/Scripts/python -I tools/resolve_sound_master.py "<juego>/Windose_Data" build_data/needy3ds
-# 4. compilar el .3dsx (en MSYS2)
+tools/.venv/Scripts/python -I tools/resolve_sound_master.py "<game>/Windose_Data" build_data/needy3ds
+tools/.venv/Scripts/python -I tools/export_anims.py "<game>/Windose_Data" build_data/needy3ds
+tools/.venv/Scripts/python -I tools/dump_prefabs.py "<game>/Windose_Data" build_data/prefabs
+tools/.venv/Scripts/python -I tools/export_ideon.py .
+# 4. build the .3dsx (inside MSYS2)
 ./build.sh
 ```
 
-## Pruebas sin consola
+After editing Lua files, copy them into the data folder with
+`tools/.venv/Scripts/python -I tools/build_assets.py ../assets build_data lua`.
 
-- `tools/pc_harness.lua`: ejecuta el juego en el PC con un bot que juega solo. Variables:
-  `NGO_FAST=1` (avance rápido), `NGO_BOOST=1` (supera los hitos de seguidores para probar días
-  posteriores), `NGO_TOUR=1` (recorre todas las pantallas y saca capturas en `build_data/snaps/`).
-- `tools/render_snap.py`: convierte esas capturas en PNG de las dos pantallas.
-- Si existe `sdmc:/3ds/needy3ds/autoplay.txt`, el port arranca una partida en la ranura 3 y se juega
-  solo (para probar en emulador). Bórralo para jugar normal.
+## Testing without a console
 
-Más detalles: [docs/PLAN.md](docs/PLAN.md), [docs/PANTALLAS.md](docs/PANTALLAS.md) y
+- `tools/pc_harness.lua`: runs the game on PC (Lua 5.4) with a bot that plays by itself and prints
+  how many music tracks and sound effects were played. Environment variables:
+  `NGO_FAST=1` (fast-forward), `NGO_BOOST=1` (passes follower milestones to test later days),
+  `NGO_TOUR=1` (visits every screen and saves snapshots to `build_data/snaps/`),
+  `NGO_LINT=1` (reports clipped or overflowing text), `NGO_LANG=en|ja` (language),
+  `NGO_SEED=n` (bot seed, to reach other endings).
+- `tools/render_snap.py`: renders those snapshots to PNG images of both screens.
+- `tools/test_endings.ps1`: forces every ending and checks that each one reaches its final screen.
+- `tools/azahar_run.ps1`, `tools/azahar_shot.ps1`: launch the emulator off-screen and capture it.
+- If `sdmc:/3ds/needy3ds/autoplay.txt` exists, the port starts a game in slot 3 and plays by
+  itself (for emulator testing). It ships disabled as `autoplay.txt.off`; rename it to use it.
+
+More details (in Spanish): [docs/PLAN.md](docs/PLAN.md), [docs/PANTALLAS.md](docs/PANTALLAS.md) and
 [docs/EVENTOS.md](docs/EVENTOS.md).
+
+## Credits
+
+NEEDY GIRL OVERDOSE © WSS playground / xemono. This is an unofficial, non-commercial fan project
+made for academic study; it is not affiliated with or endorsed by the original developers.
+Lua 5.4 © Lua.org, PUC-Rio (MIT). LZ4 © Yann Collet (BSD-2-Clause).

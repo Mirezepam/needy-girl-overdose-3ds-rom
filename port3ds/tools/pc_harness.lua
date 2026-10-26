@@ -18,6 +18,7 @@ end
 
 local now_ms = 0
 local texid = 0
+local TEXSIZE = {}   -- local: the game runtime intercepts unknown globals
 -- ---------------------------------------------------------------- font metrics identical to source/gfx.c
 local FONT = { glyphs = {} }
 do
@@ -84,9 +85,56 @@ local function font_layout(s, x, y, color, scale, wrap, maxLines, emit)
   if cx - x > maxW then maxW = cx - x end
   return (cy - y) + lh() * scale, maxW
 end
+-- NGO_LINT=1: report texts that leave the screen, invisible texts and Japanese shown outside
+-- Japanese (unique, with the screen and a short excerpt)
+LINT = nil
+if os.getenv("NGO_LINT") == "1" then
+  local seen = {}
+  LINT = function(s, x, y, w, h, c, wrap, maxLines)
+    if s == "" then return end
+    local G = package.loaded["runtime.gfx"]
+    local scr = G and G.screen == 0 and "top" or "bottom"
+    local sw = scr == "top" and 400 or 320
+    local issues = {}
+    if x + w > sw + 1 then issues[#issues + 1] = string.format("overflow-right %d>%d", math.floor(x + w), sw) end
+    if x < -1 then issues[#issues + 1] = "overflow-left" end
+    if y + h > 241 then issues[#issues + 1] = "overflow-bottom" end
+    if c and (c & 0xff) == 0 then issues[#issues + 1] = "transparent" end
+    if (maxLines or 0) > 0 and (wrap or 0) > 0 then
+      local fh = font_layout(s, 0, 0, 0xffffffff, 1, wrap, 0, nil)
+      if fh > h + 1 then issues[#issues + 1] = "truncated" end
+    end
+    local lang = Settings and Settings.CurrentLanguage and Settings.CurrentLanguage.Value
+    if lang and lang ~= "JP" and s:find("[�-�]") then
+      -- hiragana/katakana/kanji (U+3040..U+9FFF) outside Japanese
+      local ok, has = pcall(function()
+        for _, cp in utf8.codes(s) do if cp >= 0x3040 and cp <= 0x9FFF then return true end end
+      end)
+      if ok and has then issues[#issues + 1] = "japanese" end
+    end
+    if #issues > 0 then
+      -- only stable positions: sliding notifications start off screen on purpose
+      local pkey = scr .. "|" .. s:sub(1, 60)
+      local st = seen["pos:" .. pkey]
+      if not st or st.x ~= math.floor(x) or st.y ~= math.floor(y) then
+        seen["pos:" .. pkey] = { x = math.floor(x), y = math.floor(y), n = 1 }
+        return
+      end
+      st.n = st.n + 1
+      if st.n < 4 then return end
+      local key = table.concat(issues, ",") .. "|" .. s:sub(1, 40)
+      if not seen[key] then
+        seen[key] = true
+        print(string.format("  [lint] %s %s x=%d y=%d w=%d | %s", scr, table.concat(issues, ","), math.floor(x), math.floor(y),
+          math.floor(w), (s:gsub("\n", " / ")):sub(1, 70)))
+      end
+    end
+  end
+end
 local TEXPATH = { font = "font/main.ntx" }
 SNAPSHOT = { pending = nil }
 
+AUDIO = { bgm = 0, se = 0, bgms = {}, ses = {}, missing = {} }
 sys = {
   data = DATA,
   tex_load = function(p)
@@ -96,7 +144,7 @@ sys = {
     TEXLOADS = (TEXLOADS or 0) + 1
     texid = texid + 1
     TEXBYTES = (TEXBYTES or 0) + w * h * (fmt == 0 and 4 or (fmt == 8 and 1 or 2))
-    TEXSIZE = TEXSIZE or {}; TEXSIZE[texid] = w * h * (fmt == 0 and 4 or (fmt == 8 and 1 or 2))
+    TEXSIZE[texid] = w * h * (fmt == 0 and 4 or (fmt == 8 and 1 or 2))
     TEXPATH[tostring(texid)] = map(p):sub(#DATA + 1)
     return texid, w, h
   end,
@@ -109,6 +157,7 @@ sys = {
   clear_color = function() end,
   text = function(s, x, y, c, scale, wrap, maxLines)
     local h, w = font_layout(tostring(s), x, y, c or 0xffffffff, scale, wrap, maxLines, REC)
+    if LINT then LINT(tostring(s), x, y, w, h, c, wrap, maxLines) end
     return h, w
   end,
   measure = function(s, scale, wrap, maxLines)
@@ -116,8 +165,20 @@ sys = {
     return w, h
   end,
   line_height = function() return lh() end,
-  bgm_play = function(p) return true end, bgm_stop = function() end, bgm_volume = function() end, bgm_pos = function() return 0 end,
-  se_load = function() return 1 end, se_free = function() end, se_play = function() end,
+  -- audio: count what the game plays and flag clips missing from the data folder
+  audio_ok = function() return true end,
+  bgm_play = function(p)
+    local f = io.open(map(p), "rb")
+    if not f then AUDIO.missing[p] = true return false end
+    f:close(); AUDIO.bgm = AUDIO.bgm + 1; AUDIO.bgms[p:match("[^/]+$")] = true; return true
+  end,
+  bgm_stop = function() end, bgm_volume = function() end, bgm_pos = function() return 0 end,
+  se_load = function(p)
+    local f = io.open(map(p), "rb")
+    if not f then return nil end
+    f:close(); AUDIO.ses[#AUDIO.ses + 1] = p:match("[^/]+$"); return #AUDIO.ses
+  end,
+  se_free = function() end, se_play = function(id) AUDIO.se = AUDIO.se + 1 end,
   video_open = function() return nil end, video_show = function() end, video_draw = function() end, video_close = function() end,
   read = function(p) local f = io.open(map(p), "rb"); if not f then return nil end local s = f:read("a"); f:close(); return s end,
   write = function(p, d) local f = io.open(map(p), "wb"); if not f then return false end f:write(d); f:close(); return true end,
@@ -133,6 +194,14 @@ sys = {
   is_new3ds = function() return false end,
 }
 
+-- keep the device log (sdmc log.txt, shared with the emulator through the junction) untouched
+do
+  local open = io.open
+  io.open = function(p, m)
+    if p == DATA .. "log.txt" then p = PORT .. "/build_data/pc_log.txt" end
+    return open(p, m)
+  end
+end
 dofile(PORT .. "/lua/main.lua")
 local core = require("runtime.core")
 core.debug_cancel = false
@@ -171,7 +240,7 @@ local function auto_snap()
   local f = WindowManager.focusBottom
   local opts = JineManager._options and JineManager._options.list
   if once("jine_options", opts and opts.n > 0 and f and f.kind == "jine") then return end
-  if once("jine", f and f.kind == "jine" and JineManager.history.n > 6) then return end
+  if once("jine", f and f.kind == "jine" and JineManager.history.n > tonumber(os.getenv("NGO_JINE_N") or 6)) then return end
   if once("live", core.views.Live and #core.views.Live.comments > 6) then return end
   if once("live_read", core.views.Live and core.views.Live.isStartRead) then return end
   if once("notif_time", #NotificationManager.items > 0 and NotificationManager.items[#NotificationManager.items].style == "time") then return end
@@ -179,6 +248,17 @@ local function auto_snap()
   if once("neta", WindowManager:isAppOpen("NetaChoose")) then return end
   if once("poketter", f and f.kind == "poketter") then return end
   if once("desktop", not f and StatusManager:GetStatus("DayIndex") >= 2) then return end
+  if EventManager.isHorror then
+    local d = StatusManager:GetStatus("DayIndex")
+    if once("horror_d" .. d .. "_live", core.views.Live and #core.views.Live.comments > 4) then return end
+    if once("horror_die", WindowManager:isAppOpen("Die")) then return end
+    if once("horror_wrist", WindowManager:isAppOpen("Darkness")) then return end
+    if once("horror_kb", WindowManager:isAppOpen("KeijibanMini")) then return end
+    local hk = core.ui_state("HakkyoShortCutParent")
+    if once("horror_hakkyo", hk.interactable == true) then return end
+    if once("horror_poem", Poem.state ~= nil) then return end
+    if once("horror_d" .. d, frame % 300 == 0) then return end
+  end
   if frame % 6000 == 0 then snap("periodic") end
 end
 
@@ -191,7 +271,8 @@ local function tour()
     function() WindowManager:CleanAll(); B.debug_open_menu("internet") return "menu_internet" end,
     function() B.debug_open_menu("ame") return "menu_ame" end,
     function() B.debug_open_menu("okusuri") return "menu_okusuri" end,
-    function() B.debug_open_menu("odekake") return "menu_odekake" end,
+    function() B.debug_drug("dypass") return "menu_okusuri_dypass" end,
+    function() B.debug_drug(nil); B.debug_open_menu("odekake") return "menu_odekake" end,
     function() B.debug_open_menu("neru") return "menu_neru" end,
     function() B.debug_open_menu(nil); WindowManager:NewWindow_2("NetaChoose") return "neta" end,
     function() WindowManager:CloseApp("NetaChoose"); WindowManager:NewWindow_2("Poketter") return "poketter" end,
@@ -206,7 +287,43 @@ local function tour()
     function() WindowManager:CloseApp("Train"); WindowManager:NewWindow_2("Hakkyo") return "hakkyo" end,
     function() WindowManager:CloseApp("Hakkyo"); WindowManager:NewWindow_2("Yakujo") return "yakujo" end,
     function() WindowManager:CloseApp("Yakujo"); WindowManager:NewWindow_2("EndingDialog") return "ending_dialog" end,
-    function() WindowManager:CloseApp("EndingDialog"); game.quit = true return nil end,
+    function() WindowManager:CloseApp("EndingDialog"); WindowManager:NewWindow_2("TaskManager")
+      NotificationManager:add("Jine", "mensaje de prueba de notificación") return "taskmanager_notif" end,
+    function() NotificationManager.items = {}; WindowManager:CloseApp("TaskManager"); WindowManager:NewWindow_2("ControlPanel") return "controlpanel" end,
+    function() WindowManager:CloseApp("ControlPanel"); ChanceEffectController:OnReach("Chainsaw") return nil end,
+    function() return "chance_chainsaw" end,
+    function() ChanceEffectController:OnOut(); WindowManager:NewWindow_2("App_Ending_Grand") return nil end,
+    function() return "ending_grand" end,
+    function() WindowManager:CloseApp("App_Ending_Grand"); WindowManager:NewWindow_2("App_Ending_Netshut") return "ending_netshut" end,
+    function() WindowManager:CloseApp("App_Ending_Netshut"); require("ui.bottom").app_module("chipget").cover:getNewChip("Kaidan", 2) return nil end,
+    function() return "chipget" end,
+    function() require("ui.bottom").app_module("chipget").cover:EndGet()
+      for _, a in ipairs({ "Ideon_taiki", "Ideon_2ch", "Ideon_hutaba", "Ideon_nico", "Ideon_news", "Ideon_Insta", "Ideon_wiki" }) do
+        WindowManager:NewWindow_2(a)
+      end
+      return "ideon" end,
+    function() WindowManager:CleanAll(); WindowManager:NewWindow_2("Keijiban") return "keijiban" end,
+    function() WindowManager:CloseApp("Keijiban"); WindowManager:NewWindow_2("EgosaResult") return nil end,
+    function() return "egosa" end,
+    function() WindowManager:CleanAll(); WindowManager:NewWindow_2("Dinder") return "dinder" end,
+    function() WindowManager:CleanAll(); WindowManager:NewWindow_2("Bank") return nil end,
+    function() return "bank" end,
+    function() WindowManager:CleanAll(); WindowManager:NewWindow_2("AsobuLust") return "asobulust" end,
+    function() WindowManager:CleanAll(); spawn(function() Poem:StartPoem("Internet es un pozo sin fondo.\n\nY aun así es lo único que tengo.", true) end) return nil end,
+    function() return "poem" end,
+    function() Poem.state = nil; EventManager.nowEnding = "Ending_Meta"
+      for _, n in ipairs({ "castwindow", "jimaku", "Button1" }) do core.ui_find(n):SetActive(true) end
+      local tmp = core.ui_find("jimakuText"):GetComponent("TMP_Text"); tmp:DOText("...pero ¿quién está mirando?", 1)
+      core.ui_find("Button1"):GetComponent("TMP_Text").text = "Soy yo"
+      return nil end,
+    function() return "meta" end,
+    function() for _, n in ipairs({ "castwindow", "jimaku", "Button1" }) do core.ui_find(n):SetActive(false) end
+      EventManager.nowEnding = "Ending_Needy"; require("ui.bottom").app_module("endingblue").show() return nil end,
+    function() return "endingblue" end,
+    function() require("ui.bottom").app_module("endingblue").hide(); EventManager.nowEnding = "Ending_None"
+      WindowManager:CleanAll(); WindowManager:NewWindow_2("Darkness") return nil end,
+    function() return "wristcut" end,
+    function() WindowManager:CleanAll(); game.quit = true return nil end,
   }
   if SNAPSHOT.pending then return end
   tour_wait = tour_wait - 1
@@ -238,6 +355,8 @@ local function boost()
   end
 end
 local EVAL = os.getenv("NGO_EVAL")
+local injected = false
+local hold_until = 0
 local function bot()
   if EVAL and started and StatusManager.statuses and frame > 200 then
     local fn, err = load(EVAL)
@@ -245,10 +364,23 @@ local function bot()
     game.quit = true
     return
   end
+  -- NGO_INJECT: Lua run once (frame 600) without stopping the game, to jump into a story branch
+  local INJ = os.getenv("NGO_INJECT")
+  if INJ and INJ ~= "" and started and not injected and frame >= 600 and StatusManager.statuses
+     and StatusManager:GetStatus("DayIndex") >= 2 and not EventManager.isEventing and not StatusManager.Moved.Value
+     and EventManager.eventQueue.Count == 0 and #NotificationManager.items == 0 and frame % 60 == 30 then
+    injected = true
+    local fn, err = load(INJ)
+    print("  >> INJECT", fn and select(2, pcall(fn)) or err)
+    -- the injected code may ask the bot to stay idle for a while (BOT_HOLD frames)
+    local hold = rawget(_G, "BOT_HOLD")
+    if hold then hold_until = frame + hold end
+  end
   if TOUR and started and StatusManager.statuses and StatusManager:GetStatus("DayIndex") >= 2 then return end
   if not started then
     if frame == 30 then
-      require("ui.main").start_game({ lang = "es", slot = 1 })
+      if os.getenv("NGO_SEED") then math.randomseed(tonumber(os.getenv("NGO_SEED"))) end
+      require("ui.main").start_game({ lang = os.getenv("NGO_LANG") or "es", slot = 1, saveFile = os.getenv("NGO_CONT") })
       started = true
       if os.getenv("NGO_DEBUGSC") == "1" then
         local f0 = EventManager.SetShortcutState
@@ -306,6 +438,27 @@ local function bot()
     end
     if w.app == "EndingDialog" then print("== ENDING DIALOG:", EventManager.nowEnding); game.quit = true return end
   end
+  -- the blue ending screen (EventManager.CallEnding)
+  if require("ui.bottom").app_module("endingblue").active() then
+    print("== ENDING DIALOG:", EventManager.nowEnding, "(blue screen)")
+    game.quit = true
+    return
+  end
+  -- Ending_Meta: answer with the first button shown
+  local mc = require("ui.bottom").app_module("metacover")
+  if mc.active() and frame % 120 == 0 then
+    for _, n in ipairs({ "Button1", "Button2" }) do
+      local o = core.ui_objects[n]
+      if o and rawget(o, "_active") == true then
+        print("  >> META", n)
+        core.fire_pointer(o:GetComponent("Button"), "down")
+        return
+      end
+    end
+  end
+  -- the new-idea cover (ChipGet_Show): press OK
+  local chipget = require("ui.bottom").app_module("chipget")
+  if chipget.active() and frame % 60 == 0 then print("  >> CHIP OK"); chipget.cover:EndGet() return end
   -- head-pat minigame
   local nade = require("ui.bottom").app_module("nade")
   if nade.active() then
@@ -334,12 +487,80 @@ local function bot()
     login.interactable = false
     return
   end
+  -- Ending_Happy's Uratter window: open the secret account, then send the follow request
+  local ura = WindowManager:find("Uratter")
+  if ura and frame % 120 == 0 then
+    print("  >> URAURA")
+    require("ui.apps.uraura").bot_step(ura)
+  end
+  -- Ending_Sucide: the liveend icon starts the last stream
+  local le = core.ui_objects.liveend
+  if le and rawget(le, "_active") == true and not StatusManager.Moved.Value and frame % 120 == 0 then
+    print("  >> LIVEEND")
+    rawset(le, "_active", false)
+    WindowManager:NewWindow_2("Broadcast")
+    return
+  end
+  -- Ending_Ideon: start the last stream from the waiting room
+  if WindowManager:find("Ideon_taiki") and not StatusManager.Moved.Value and not EventManager.isEventing and frame % 240 == 0 then
+    print("  >> IDEON START")
+    EventManager:AddEvent_1("HaishinStart_Ideon")
+    return
+  end
+  -- Ending_Lust / Ending_Needy: the special Play window
+  for app, ev in pairs({ AsobuLust = "Action_Inran", AsobuNeedy = "Action_Needy" }) do
+    if WindowManager:find(app) and not EventManager.isEventing and not StatusManager.Moved.Value and frame % 240 == 0 then
+      print("  >> SPECIAL", app)
+      EventManager:AddEvent_1(ev)
+      return
+    end
+  end
+  -- the GoOut window (Ame asks to go out): pick a destination the menu offers
+  local go = WindowManager:find("GoOut")
+  if go and not StatusManager.Moved.Value and frame % 120 == 0 then
+    local st = CommandManager.commandStatus and CommandManager.commandStatus.Value
+    local opts = {}
+    for _, x in ipairs(require("ui.bottom").MENUS.odekake) do
+      local s0 = st and st ~= NULL and st:__idx(x)
+      if s0 == nil or s0 == "Executable" then opts[#opts + 1] = x end
+    end
+    if #opts > 0 then
+      local a = opts[math.random(#opts)]
+      print("  >> GOOUT", a)
+      WindowManager:Close(go)
+      CommandManager:CommandAction_2(a)
+      return
+    end
+  end
+  -- horror day 4: the Hakkyo desktop -> HakkyoDialog -> go on
+  local hk = core.ui_state("HakkyoShortCutParent")
+  if hk.interactable == true and frame % 120 == 0 then
+    local hw = WindowManager:find("Hakkyo")
+    if hw then
+      print("  >> HAKKYO")
+      WindowManager:Close(hw)
+      hk.interactable = false
+      EventManager:AddEvent_1("Scenario_horror_day4_day_hakkyoed")
+    else
+      WindowManager:NewWindow_2("Hakkyo")
+    end
+    return
+  end
+  -- horror day 3: the Dielog
+  local dw = WindowManager:find("Die")
+  if dw and not EventManager.isEventing and frame % 240 == 0 then
+    print("  >> DIELOG")
+    WindowManager:Close(dw)
+    EventManager:AddEvent_1("Scenario_horror_day3_day_AfterSine")
+    return
+  end
   -- the Darkness window (stress event): press its only command
   if WindowManager:find("Darkness") and not StatusManager.Moved.Value and frame % 120 == 0 then
     print("  >> ACTION", "Darkness")
     CommandManager:CommandAction_2("Darkness")
     return
   end
+  if frame < hold_until then return end
   -- idle: act (the first night belongs to the tutorial: log in and stream)
   if StatusManager:GetStatus("DayIndex") < 2 then return end
   if StatusManager.Moved.Value or not TaskbarManager.interactive or core.ui_state("ShortCutParent").interactable == false then return end
@@ -391,6 +612,12 @@ local ok, err = xpcall(function()
         frame, tostring(EventManager.isEventing), tostring(StatusManager.Moved.Value), tostring(TaskbarManager.interactive),
         tostring(core.ui_state("ShortCutParent").interactable), EventManager.eventQueue.Count, #NotificationManager.items,
         tostring(JineManager.waitStatus.Value), table.concat(wins, ","), #core.sched.tasks))
+      print("  [diag] nowEnding", tostring(EventManager.nowEnding))
+      if EventManager.nowEnding ~= "Ending_None" then
+        local function act(n) local o = core.ui_objects[n]; return o and tostring(rawget(o, "_active")) or "-" end
+        print("  [diag] ending", EventManager.nowEnding, "castwindow", act("castwindow"), "jimaku", act("jimaku"),
+              "Button1", act("Button1"), "meta", act("meta"), "liveend", act("liveend"))
+      end
       if os.getenv("NGO_DEBUGSC") == "1" then
         local t1, t2 = rawget(StatusManager, "token1"), rawget(StatusManager, "token2")
         print("  [sc] tweets", PoketterManager._tweetQueue.Count, "shooting", tostring(PoketterManager.isShootRunning.Value), "view", tostring(core.views.PoketterView2D), "lastAct", tostring(EventManager.executingAction), "t1", t1 and tostring(t1.p and t1.p.dead or t1.fn), "t2", t2 and tostring(t2.p and t2.p.dead or t2.fn))
@@ -442,6 +669,7 @@ local ok, err = xpcall(function()
     if frame % 5000 == 0 then
       print(string.format("  [perf] update %.2f ms  draw %.2f ms  pollers %d  tasks %d  luaKB %.0f  texloads %d  texMB %.1f",
         PERF.u / PERF.n * 1000, PERF.d / PERF.n * 1000, #core.pollers, #core.sched.tasks, collectgarbage("count"), TEXLOADS or 0, (TEXBYTES or 0) / 1048576))
+      print("  [perf] pages", (require("runtime.gfx").stats()))
       TEXLOADS = 0
       rawset(_G, "PERF", nil)
     end
@@ -468,3 +696,8 @@ local ok, err = xpcall(function()
 end, debug.traceback)
 if not ok then print("ERROR:", err) end
 print("frames:", frame, "events:", EventManager.eventsHistory and EventManager.eventsHistory.Count)
+do
+  local b = {} for k in pairs(AUDIO.bgms) do b[#b + 1] = k end table.sort(b)
+  print("audio: bgm starts " .. AUDIO.bgm .. ", se plays " .. AUDIO.se .. ", se clips " .. #AUDIO.ses .. ", bgm clips: " .. table.concat(b, " "))
+  for k in pairs(AUDIO.missing) do print("audio MISSING: " .. k) end
+end

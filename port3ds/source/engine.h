@@ -35,6 +35,7 @@ int font_line_height(void);
 
 // audio.c
 bool audio_init(void);
+bool audio_ok(void);
 void audio_exit(void);
 bool audio_bgm_play(const char *path, bool loop);
 void audio_bgm_stop(void);

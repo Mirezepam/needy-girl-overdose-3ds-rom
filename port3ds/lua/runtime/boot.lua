@@ -80,6 +80,16 @@ function boot.start_game(opts)
   end
 end
 
+-- every day saved for a slot, oldest first: {{file, day}...}
+function boot.saves(slot)
+  local r = {}
+  for day = 1, 30 do
+    local f = string.format("Data%d_Day%d.es3", slot, day)
+    if sys.exists("sdmc:/3ds/needy3ds/save/" .. f) then r[#r + 1] = { file = f, day = day } end
+  end
+  return r
+end
+
 -- latest day saved for a slot, or nil
 function boot.latest_save(slot)
   for day = 30, 1, -1 do

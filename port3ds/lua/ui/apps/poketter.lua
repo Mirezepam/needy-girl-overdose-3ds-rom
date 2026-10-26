@@ -18,7 +18,8 @@ local function entry(d)
   local e = cache[d]
   if e then return e end
   local dr = NEW("TweetDrawable", 1, d)
-  e = { text = NgoEx.GetTweetBody(dr, lang()), fav = d.FavNumber or 0, rt = d.RtNumber or 0, omote = d.IsOmote, replies = {} }
+  e = { text = NgoEx.GetTweetBody(dr, lang()), fav = d.FavNumber or 0, rt = d.RtNumber or 0, omote = d.IsOmote, replies = {},
+        day = d.day }
   if e.text == NULL then e.text = "" end
   local img = dr.ImageId
   if type(img) == "string" and G.exists(img) then e.image = img end
@@ -33,10 +34,10 @@ local function entry(d)
     for _, s in EACH(d.kusoRepString) do e.replies[#e.replies + 1] = s end
   end
   local _, h = G.measure(e.text, 1, W - 40)
-  e.h = h + 24 + (e.image and 16 or 0)
+  e.h = 6 + 12 + h + 4 + (e.image and 78 or 0) + 14
   for _, r in ipairs(e.replies) do
-    local _, rh = G.measure(r, 1, W - 60)
-    e.h = e.h + rh + 4
+    local _, rh = G.measure(r, 1, W - 72)
+    e.h = e.h + math.max(18, rh + 4) + 2
   end
   cache[d] = e
   return e
@@ -75,20 +76,37 @@ hook = core.poll(function()
 end)
 
 -- ------------------------------------------------------------------ draw
+-- PoketterCell: icon, account (#1139a1), body (#1303a6), picture, RT (#07781c) / fav star
+-- (#7a7717), DAY n (#5b5f62), then the kusoreps with the arrow and the black kusoripu icon
+local function account(omote)
+  if omote then return T.st("Account_Omote", "@x_angelkawaii_x") end
+  return T.st("Account_Ura_Name", "@raincandy_U")
+end
+local function num(n)
+  local s = tostring(math.floor(n or 0))
+  return (s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
+end
 local function draw_tweet(e, x, y, sel)
   G.rect(x, y, W, e.h - 2, sel and 0xfff4d6ff or c.white)
-  G.frame_rect(x, y, W, e.h - 2, 0xd8d0ecff)
-  G.draw(e.omote and "icon_ame" or "icon_ame_ura", x + 4, y + 4, { fit = { 22, 22 } })
-  G.text(e.omote and "@chouten_KAWAII" or "@ame_ura", x + 30, y + 3, c.inkSoft)
-  local _, th = G.text(e.text, x + 30, y + 14, c.ink, 1, W - 40)
-  local yy = y + 14 + th
-  if e.image then G.text("▣ imagen (arriba)", x + 30, yy, c.lilacDark); yy = yy + 14 end
-  G.draw("icon_heart", x + 30, yy, { fit = { 9, 9 } }); G.text(tostring(e.fav), x + 42, yy, c.pinkDark)
-  G.draw("icon_retweet", x + 100, yy, { fit = { 9, 9 } }); G.text(tostring(e.rt), x + 112, yy, c.mint)
-  yy = yy + 12
+  G.rect(x, y + e.h - 3, W, 1, 0xe6e0f0ff)
+  G.draw(e.omote and "icon_cho" or "icon_ame_ura", x + 4, y + 4, { fit = { 22, 22 } })
+  G.text(account(e.omote), x + 30, y + 3, 0x1139a1ff, 1, W - 74, 1)
+  if e.day then G.text("DAY " .. e.day, x + W - 40, y + 3, 0x5b5f62ff) end
+  local th = G.text(e.text, x + 30, y + 16, 0x1303a6ff, 1, W - 40)   -- text() returns height, width
+  local yy = y + 16 + th + 2
+  if e.image then
+    G.rect(x + 30, yy, 124, 74, 0x000000ff)
+    G.draw(e.image, x + 92, yy + 37, { ax = 0.5, ay = 0.5, fit = { 124, 74 } })
+    yy = yy + 78
+  end
+  G.draw("icon_retweet", x + 30, yy + 1, { fit = { 10, 10 } }); G.text(num(e.rt), x + 43, yy, 0x07781cff)
+  G.draw("icon_star", x + 120, yy + 1, { fit = { 10, 10 } }); G.text(num(e.fav), x + 133, yy, 0x7a7717ff)
+  yy = yy + 14
   for _, r in ipairs(e.replies) do
-    local _, rh = G.text("↳ " .. r, x + 40, yy, c.inkSoft, 1, W - 60)
-    yy = yy + rh + 4
+    G.draw("image_kusorep_arrow", x + 30, yy + 2, { fit = { 8, 10 } })
+    G.draw("icon_kusoripu_black", x + 42, yy, { fit = { 16, 16 } })
+    local rh = G.text(r, x + 62, yy + 2, 0x1303a6ff, 1, W - 72)
+    yy = yy + math.max(18, rh + 4) + 2
   end
 end
 
@@ -150,6 +168,8 @@ function M.draw(win, x0, y0, w0, h0)
   end
   G.unclip()
 end
+
+M.entry, M.draw_tweet, M.W = entry, draw_tweet, W
 
 -- top screen: the selected tweet, picture at full size
 function M.draw_top(win)

@@ -10,7 +10,11 @@ function C:ResetShader() self.effect = nil; self.weight = 0; self.anmaku = 0 end
 function C:ResetShaderCalmly_1() self:ResetShader() end
 function C:ResetShaderCalmly_2() self:ResetShader() end
 function C:MogoMogo(on) self.mogo = on end
-function C:BloomLight() return NULL end
+-- the BloomLight Volume: scenarios read its Bloom component and animate the intensity
+local bloom = { intensity = { value = 0 }, active = true }
+local bloomVolume = { weight = 0, profile = { TryGet = function(_, _) return true, bloom end } }
+C.__getters.BloomLight = function() return bloomVolume end
+C.bloom = bloom
 function C:Dispose() end
 C.Instance = C
 return C

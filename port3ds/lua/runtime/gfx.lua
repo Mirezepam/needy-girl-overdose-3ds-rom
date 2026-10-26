@@ -13,9 +13,12 @@ G.W, G.H = 400, 240
 
 function G.set_budget(bytes) BUDGET = bytes end
 
-local function evict(need)
-  local _, used = sys.mem()
-  while used + need > BUDGET do
+-- frees least recently used pages until `need` bytes fit in the budget and in the linear heap
+-- (audio buffers and cached effects share that heap, so the budget alone is not enough)
+local RESERVE = 1536 * 1024
+local function evict(need, all)
+  local free, used = sys.mem()
+  while all or used + need > BUDGET or free < need + RESERVE do
     local oldest, key
     for k, p in pairs(pages) do
       if p.last < frame and (not oldest or p.last < oldest.last) then oldest, key = p, k end
@@ -23,7 +26,7 @@ local function evict(need)
     if not oldest then return end
     sys.tex_free(oldest.id)
     pages[key] = nil
-    _, used = sys.mem()
+    free, used = sys.mem()
   end
 end
 
@@ -32,8 +35,14 @@ local function page(group, p)
   local pg = pages[key]
   if pg then pg.last = frame; return pg end
   local size = groups[group] and groups[group].sizes[p + 1]
-  if size then evict(size[1] * size[2] * 2) end
+  local need = size and size[1] * size[2] * 2 or 0
+  evict(need)
   local id, w, h = sys.tex_load(sys.data .. "gfx/" .. key .. ".ntx")
+  if not id then
+    -- the heap may be fragmented: drop every page not drawn this frame and try once more
+    evict(need, true)
+    id, w, h = sys.tex_load(sys.data .. "gfx/" .. key .. ".ntx")
+  end
   if not id then
     LOG_ONCE("tex:" .. key, "texture missing", key)
     return nil
@@ -174,9 +183,13 @@ function G.draw9(name, x, y, w, h, scale, o)
   local cw = { bl, sw - bl - br, br }
   local ry = { sy, sy + bt, sy + sh - bb }
   local rh = { bt, sh - bt - bb, bb }
-  local dl, dr, dt, db = bl * scale, br * scale, bt * scale, bb * scale
-  if dl + dr > w then local k = w / (dl + dr); dl, dr = dl * k, dr * k end
-  if dt + db > h then local k = h / (dt + db); dt, db = dt * k, db * k end
+  -- whole pixels only: odd borders at scale 0.5 put the seams on half pixels and the slices then
+  -- left 1 px gaps (what was behind showed through as lines)
+  local fl = math.floor
+  x, y, w, h = fl(x + 0.5), fl(y + 0.5), fl(w + 0.5), fl(h + 0.5)
+  local dl, dr, dt, db = fl(bl * scale + 0.5), fl(br * scale + 0.5), fl(bt * scale + 0.5), fl(bb * scale + 0.5)
+  if dl + dr > w then local k = w / (dl + dr); dl = fl(dl * k); dr = w - dl end
+  if dt + db > h then local k = h / (dt + db); dt = fl(dt * k); db = h - dt end
   local dx = { x, x + dl, x + w - dr }
   local dw = { dl, w - dl - dr, dr }
   local dy = { y, y + dt, y + h - db }
@@ -198,9 +211,136 @@ function G.frame_rect(x, y, w, h, c, t)
   sys.rect(x, y, w, t, c); sys.rect(x, y + h - t, w, t, c)
   sys.rect(x, y, t, h, c); sys.rect(x + w - t, y, t, h, c)
 end
+-- the game's texts carry TextMeshPro rich-text tags (<br>, <mspace=..>, <color=..>, <size=..>):
+-- <br> becomes a line break, the other tags are dropped
+local cleaned = {}
+local function clean(s)
+  s = tostring(s)
+  if not s:find("<", 1, true) then return s end
+  local r = cleaned[s]
+  if r then return r end
+  r = s:gsub("<[bB][rR]%s*/?>", "\n"):gsub("</?%a[%w%-]*=?[^<>]*>", "")
+  cleaned[s] = r
+  return r
+end
+G.clean = clean
+
+-- Emoji: the bitmap font has none, the game drew them from TextMeshPro sprite assets. Texts that
+-- contain one are laid out here (words + emoji sprites, same wrapping rules) and the layout is
+-- cached; everything else goes straight to the C text renderer.
+local EMOJI = require("runtime.emoji_map")
+local SKIP = { [0xFE0F] = true, [0x200D] = true, [0xFE0E] = true }
+local emoji_flag, layouts, nlayouts = {}, {}, 0
+
+local function has_emoji(s)
+  local f = emoji_flag[s]
+  if f ~= nil then return f end
+  f = false
+  if s:find("[\226-\244]") then
+    -- walk the whole string: invalid UTF-8 makes it a plain text (utf8.codes would raise later)
+    local ok = pcall(function()
+      for _, cp in utf8.codes(s) do if EMOJI[cp] then f = true end end
+    end)
+    if not ok then f = false end
+  end
+  emoji_flag[s] = f
+  return f
+end
+
+local function rich_layout(s, scale, wrap, maxLines)
+  local key = s .. "\0" .. scale .. "\0" .. wrap .. "\0" .. maxLines
+  local L = layouts[key]
+  if L then return L end
+  local lh = G.LH * scale
+  local space = sys.measure("a a", scale, 0, 0) - sys.measure("aa", scale, 0, 0)
+  -- tokens: {"w", text} words, {"s"} spaces, {"n"} line breaks, {"e", sprite} emoji
+  local toks, word = {}, {}
+  local function flush() if #word > 0 then toks[#toks + 1] = { "w", table.concat(word) }; word = {} end end
+  for _, cp in utf8.codes(s) do
+    if EMOJI[cp] then flush(); toks[#toks + 1] = { "e", EMOJI[cp] }
+    elseif cp == 10 then flush(); toks[#toks + 1] = { "n" }
+    elseif cp == 32 then flush(); toks[#toks + 1] = { "s" }
+    elseif not SKIP[cp] then
+      word[#word + 1] = utf8.char(cp)
+      if cp >= 0x3000 then flush() end   -- CJK: any character may start a new line
+    end
+  end
+  flush()
+  local ops, line, cx, maxw = {}, 0, 0, 0
+  local cur = nil      -- text op being extended on the current line
+  local done = false
+  local function newline()
+    maxw = math.max(maxw, cx)
+    line, cx, cur = line + 1, 0, nil
+    if maxLines > 0 and line >= maxLines then done = true end
+  end
+  for _, t in ipairs(toks) do
+    if done then break end
+    if t[1] == "n" then newline()
+    else
+      local tw = t[1] == "s" and space or (t[1] == "e" and lh or sys.measure(t[2], scale, 0, 0))
+      if wrap > 0 and cx > 0 and cx + tw > wrap and t[1] ~= "s" then newline() end
+      if not done and not (t[1] == "s" and cx == 0 and line > 0) then
+        if t[1] == "e" then
+          ops[#ops + 1] = { "e", t[2], cx, line * lh }
+          cur = nil
+        else
+          local str = t[1] == "s" and " " or t[2]
+          if cur then cur[2] = cur[2] .. str else cur = { "t", str, cx, line * lh }; ops[#ops + 1] = cur end
+        end
+        cx = cx + tw
+      end
+    end
+  end
+  maxw = math.max(maxw, cx)
+  L = { ops = ops, w = maxw, h = (math.min(line + 1, maxLines > 0 and maxLines or line + 1)) * lh }
+  nlayouts = nlayouts + 1
+  if nlayouts > 300 then layouts, nlayouts, emoji_flag = {}, 0, {} end
+  layouts[key] = L
+  return L
+end
+
 function G.text(s, x, y, c, scale, wrap, maxLines)
   if s == nil or s == NULL then return 0, 0 end
-  return sys.text(tostring(s), x, y, c or 0xffffffff, scale or 1, wrap or 0, maxLines or 0)
+  s = clean(s)
+  if has_emoji(s) then
+    local L = rich_layout(s, scale or 1, wrap or 0, maxLines or 0)
+    local lh = G.LH * (scale or 1)
+    for _, op in ipairs(L.ops) do
+      if op[1] == "t" then sys.text(op[2], x + op[3], y + op[4], c or 0xffffffff, scale or 1, 0, 0)
+      else G.draw(op[2], x + op[3], y + op[4] - 1, { fit = { lh, lh } }) end
+    end
+    return L.h, L.w
+  end
+  if (maxLines or 0) > 0 and (wrap or 0) > 0 then s = G.ellipsize(s, scale or 1, wrap, maxLines) end
+  return sys.text(s, x, y, c or 0xffffffff, scale or 1, wrap or 0, maxLines or 0)
+end
+
+-- a text that needs more than maxLines lines ends in "…" on the last one instead of being cut
+local ell_cache, ell_n = {}, 0
+function G.ellipsize(s, scale, wrap, maxLines)
+  local key = s .. "\0" .. scale .. "\0" .. wrap .. "\0" .. maxLines
+  local r = ell_cache[key]
+  if r then return r end
+  local lh = G.LH * scale
+  local function lines(t) local _, h = sys.measure(t, scale, wrap, 0); return math.floor(h / lh + 0.5) end
+  r = s
+  if lines(s) > maxLines then
+    local ok, n = pcall(utf8.len, s)
+    if ok and n then
+      local lo, hi = 0, n
+      while lo < hi do   -- longest prefix that still fits with the ellipsis
+        local mid = (lo + hi + 1) // 2
+        local cut = s:sub(1, (utf8.offset(s, mid + 1) or (#s + 1)) - 1)
+        if lines(cut .. "…") <= maxLines then lo = mid else hi = mid - 1 end
+      end
+      r = s:sub(1, (utf8.offset(s, lo + 1) or (#s + 1)) - 1):gsub("%s+$", "") .. "…"
+    end
+  end
+  ell_n = ell_n + 1
+  if ell_n > 400 then ell_cache, ell_n = {}, 0 end
+  ell_cache[key] = r
+  return r
 end
 function G.text_center(s, cx, y, c, scale, wrap)
   local w = G.measure(s, scale, wrap)
@@ -209,11 +349,17 @@ end
 -- text layout is the most expensive per-frame call: memoize measurements (UI strings repeat every frame)
 local mcache, mcount = {}, 0
 function G.measure(s, scale, wrap, maxLines)
-  s = tostring(s)
+  s = clean(s)
   local key = s .. "\0" .. (scale or 1) .. "\0" .. (wrap or 0) .. "\0" .. (maxLines or 0)
   local m = mcache[key]
   if m then return m[1], m[2] end
-  local w, h = sys.measure(s, scale or 1, wrap or 0, maxLines or 0)
+  local w, h
+  if has_emoji(s) then
+    local L = rich_layout(s, scale or 1, wrap or 0, maxLines or 0)
+    w, h = L.w, L.h
+  else
+    w, h = sys.measure(s, scale or 1, wrap or 0, maxLines or 0)
+  end
   mcount = mcount + 1
   if mcount > 600 then mcache, mcount = {}, 0 end
   mcache[key] = { w, h }

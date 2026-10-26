@@ -103,9 +103,12 @@ function T.icon(id, x, y, sprite, label, badge)
     G.rect(x + 16, y + 2, 32, 32, c.lilac)
   end
   local lw = G.measure(label)
-  local lx = x + (w - lw) / 2
-  for _, d in ipairs({ { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }) do G.text(label, lx + d[1], y + 37 + d[2], c.ink, 1, w + 20, 1) end
-  G.text(label, lx, y + 37, c.white, 1, w + 20, 1)
+  local lx = math.max(1, math.min(x + (w - lw) / 2, 319 - lw))   -- keep long labels on screen
+  -- a 1 px outline around this thin pixel font merges the letters ("m" became a blob): ink text on
+  -- a soft white plate reads cleanly over the patterned wallpaper
+  lx = math.floor(lx)
+  G.rect(lx - 2, y + 36, lw + 4, G.LH + 1, 0xffffffb0)
+  G.text(label, lx, y + 37, c.ink, 1, w + 20, 1)
   if badge and badge > 0 then
     G.rect(x + 44, y, 14, 12, c.red); G.frame_rect(x + 44, y, 14, 12, c.white)
     G.text_center(tostring(badge), x + 51, y + 1, c.white)
@@ -134,5 +137,19 @@ function T.scroller(state, x, y, w, h, contentH)
 end
 
 function T.dim(w) G.rect(0, 0, w or 400, 240, c.dim) end
+
+-- port-only UI strings (texts the original doesn't have) in the three languages
+local LANG_KEY = { JP = "ja", EN = "en" }
+function T.tr(t)
+  local cur = Settings and Settings.CurrentLanguage and Settings.CurrentLanguage.Value
+  return t[LANG_KEY[cur] or "es"] or t.es
+end
+-- the drug insert window (the game has no SystemText for its title)
+T.YAKUJO_TITLE = { es = "Prospecto", en = "Package Insert", ja = "添付文書" }
+-- SystemText by id with a fallback
+function T.st(id, fallback)
+  local ok, s = pcall(NgoEx.SystemTextFromType, id, Settings.CurrentLanguage.Value)
+  return (ok and type(s) == "string" and s ~= "") and s or fallback
+end
 
 return T

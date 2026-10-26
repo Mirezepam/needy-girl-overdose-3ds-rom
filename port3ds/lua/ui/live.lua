@@ -14,10 +14,18 @@ local scroll = { stick_bottom = true }
 
 -- the Live controller lives as long as a broadcast window is open
 local function ensure_live()
-  local open = false
-  for _, w in EACH(WindowManager.windows) do if w.kind == "live" then open = true end end
+  local open, newest = false, 0
+  for _, w in EACH(WindowManager.windows) do
+    if w.kind == "live" then open = true; newest = math.max(newest, w.opened or 0) end
+  end
+  -- a stream window (re)opened after the current controller started = a new broadcast
+  local cur = core.views.Live
+  if open and cur and newest > (rawget(cur, "_started") or 0) then
+    core.views.Live, core.components.Live = nil, nil
+  end
   if open and not core.views.Live then
     local live = NEW("Live")
+    rawset(live, "_started", core.now())
     core.views.Live = live
     core.components.Live = live
     spawn(function() live:Awake() end)
@@ -61,9 +69,9 @@ function M.draw_top()
   G.rect(0, 0, 400, 13, c.white)
   G.rect(0, 13, 400, 1, 0xf3e3f5ff)
   G.text("▶", 4, 1, c.red); G.text("live", 14, 1, c.red)
-  G.text(live.haisinTitle or "", 44, 1, c.ink, 1, 200, 1)
   local detail = num(live.watcher) .. " " .. st("Haisin_Watching_Number", "viendo")
   local dw = G.measure(detail)
+  G.text(live.haisinTitle or "", 44, 1, c.ink, 1, 396 - dw - 52, 1)
   G.text(detail, 396 - dw, 1, c.inkSoft, 1, 160, 1)
   -- eizo (the broadcast picture)
   local ex, ey, ew, eh = 26, 14, 348, 226
@@ -169,7 +177,7 @@ function M.draw(win, x0, y0, w0, h0)
   live:hover(hovering)
   -- comments to be read (commentLabel + YomucommentParent)
   local ty = listY + listH + 3
-  local label = live.isStartRead and st("Sysyem_StartRead", "Leyendo…") or st("Sysyem_ReadComment", "Leer los comentarios ▶")
+  local label = live.isStartRead and st("Sysyem_StartRead", "…") or st("Sysyem_ReadComment", "Leer los comentarios ▶")
   G.text(label, 6, ty, c.lilac, 1, 308, 1)
   local by = ty + 13
   local grey = live.isStartRead
