@@ -60,7 +60,7 @@ function M.draw(screen)
       G.rect(0, 0, 400, 240, 0xfff0faff)
       G.draw("boot_logo", 200, 100, { ax = 0.5, ay = 0.5, fit = { 360, 160 } })
       G.text_center("NEEDY GIRL OVERDOSE  3DS", 200, 200, T.c.lilacDark)
-      G.text_center("fan port", 200, 214, T.c.inkSoft)
+      G.text_center("Mirezepam port", 200, 214, T.c.inkSoft)
       -- ndsp needs the console's DSP firmware dump; without it the whole game is silent
       if sys.audio_ok and not sys.audio_ok() then
         G.rect(0, 228, 400, 12, 0x000000a0)

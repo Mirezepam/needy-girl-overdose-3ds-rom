@@ -19,8 +19,8 @@ GRAPHICS    :=
 ROMFS       :=
 
 APP_TITLE       := NEEDY GIRL OVERDOSE 3DS
-APP_DESCRIPTION := Fan port (requires your own game data)
-APP_AUTHOR      := port3ds
+APP_DESCRIPTION := Mirezepam port (requires your own game data)
+APP_AUTHOR      := Mirezepam
 
 #---------------------------------------------------------------------------------
 ARCH    := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft

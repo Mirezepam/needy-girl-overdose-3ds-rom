@@ -357,6 +357,7 @@ end
 local EVAL = os.getenv("NGO_EVAL")
 local injected = false
 local hold_until = 0
+local ev = {}
 local function bot()
   if EVAL and started and StatusManager.statuses and frame > 200 then
     local fn, err = load(EVAL)
@@ -366,6 +367,24 @@ local function bot()
   end
   -- NGO_INJECT: Lua run once (frame 600) without stopping the game, to jump into a story branch
   local INJ = os.getenv("NGO_INJECT")
+  -- NGO_EVENT=<class>: fire that one event on an idle day 2 (the bot keeps answering its JINE,
+  -- dialogs and notifications but starts nothing of its own) and report whether it finishes
+  local EVT = os.getenv("NGO_EVENT")
+  if EVT and EVT ~= "" and (not INJ or INJ == "") then
+    INJ = 'rawset(_G, "BOT_HOLD", 1e9); EventManager:AddEvent_2("' .. EVT .. '"); return "' .. EVT .. '"'
+  end
+  if EVT and EVT ~= "" and injected then
+    ev.t0 = ev.t0 or frame
+    local busy = EventManager.isEventing or EventManager.eventQueue.Count > 0 or StatusManager.Moved.Value
+    if busy then ev.seen, ev.idle = true, 0 else ev.idle = (ev.idle or 0) + 1 end
+    if ev.seen and ev.idle > 300 then
+      print("EVENT_DONE", EVT, frame - ev.t0) game.quit = true return
+    elseif not ev.seen and frame - ev.t0 > 600 then
+      print("EVENT_NOSTART", EVT) game.quit = true return
+    elseif frame - ev.t0 > 60000 then
+      print("EVENT_HANG", EVT, tostring(EventManager.nowEvent or EventManager.executingEvent)) game.quit = true return
+    end
+  end
   if INJ and INJ ~= "" and started and not injected and frame >= 600 and StatusManager.statuses
      and StatusManager:GetStatus("DayIndex") >= 2 and not EventManager.isEventing and not StatusManager.Moved.Value
      and EventManager.eventQueue.Count == 0 and #NotificationManager.items == 0 and frame % 60 == 30 then
@@ -455,6 +474,12 @@ local function bot()
         return
       end
     end
+  end
+  -- JINE free text (Event_Fetish, Event_Haikuwoyome...): type an answer with the keyboard
+  if JineManager.waitStatus and JineManager.waitStatus.Value == "FreeForm" and frame % 60 == 0 then
+    print("  >> FREEFORM")
+    JineManager:EndMessage("hola")
+    return
   end
   -- the new-idea cover (ChipGet_Show): press OK
   local chipget = require("ui.bottom").app_module("chipget")

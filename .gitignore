@@ -15,3 +15,6 @@ port3ds/tools/cs2lua/bin/
 port3ds/tools/cs2lua/obj/
 __pycache__/
 *.log
+port3ds/tools/cia_bin/
+port3ds/*.cia
+port3ds/cia/build/
