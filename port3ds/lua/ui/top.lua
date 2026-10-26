@@ -14,6 +14,7 @@ local HUD_STATS = { { "Follower", { es = "Seg", en = "Subs", ja = "登録" }, 0x
                     { "Yami", { es = "Mente", en = "Dark", ja = "闇" }, 0xc8a0ffff } }
 local graph_sample          -- (TaskManager graphs, defined below)
 local video = nil         -- {id, fps, frames, t0, w, h, app}
+local bankv = nil         -- bank opening video {win, name, id, w, h, fps, frames}
 local live
 
 local function lang() return Settings.CurrentLanguage.Value end
@@ -115,13 +116,17 @@ function M.update(dt)
   if tw and tw.kind == "video" then
     if not video or video.app ~= tw then
       if video then sys.video_close(video.id) end
-      local name = tw.app == "MediaPlayer" and "INTERNETOVERDOSE" or ("psyche" .. math.random(1, 32))
+      local name = tw.app == "MV" and "INTERNETOVERDOSE" or ("psyche" .. math.random(1, 32))
       local id, w, h, fps, frames = sys.video_open(sys.data .. "vid/" .. name .. ".etv")
       video = id and { id = id, w = w, h = h, fps = fps, frames = frames, t0 = core.now(), app = tw } or { app = tw }
     end
   elseif video then
     if video.id then sys.video_close(video.id) end
     video = nil
+  end
+  if bankv and not (tw and tw == bankv.win) then
+    if bankv.id then sys.video_close(bankv.id) end
+    bankv = nil
   end
 end
 
@@ -349,12 +354,26 @@ local function draw_scene(w)
   elseif k == "bank" then
     -- App_BankView: the stream opening animation (BankAnimation, English art outside Japanese,
     -- the black variant for the dark angel)
-    local name = Settings.CurrentLanguage.Value == "JP" and "BankAnimation" or "BankAnimation_Eng"
-    if (EventManager.alpha == "Angel" and EventManager.alphaLevel == 6) or EventManager.nowEnding == "Ending_DarkAngel" then
-      name = name .. "_B"
-    end
+    local jp = Settings.CurrentLanguage.Value == "JP"
+    local dark = (EventManager.alpha == "Angel" and EventManager.alphaLevel == 6) or EventManager.nowEnding == "Ending_DarkAngel"
     G.rect(0, 0, 400, 240, 0xffffffff)
-    G.play(name, core.now() - w.opened, 200, 120, { ax = 0.5, ay = 0.5, fit = { 400, 240 } })
+    -- played as an ETC1 video (tools/export_bank.py); the sprite clip is only a fallback, it
+    -- streams 31 atlas pages from the SD
+    local vname = "bank_" .. (jp and "jp" or "eng") .. (dark and "_b" or "")
+    if not bankv or bankv.win ~= w or bankv.name ~= vname then
+      if bankv and bankv.id then sys.video_close(bankv.id) end
+      local id, vw, vh, fps, frames = sys.video_open(sys.data .. "vid/" .. vname .. ".etv")
+      bankv = { win = w, name = vname, id = id, w = vw, h = vh, fps = fps, frames = frames }
+    end
+    if bankv.id then
+      local f = math.min(bankv.frames - 1, math.floor((core.now() - w.opened) * bankv.fps))
+      sys.video_show(bankv.id, f)
+      local s = math.min(400 / bankv.w, 240 / bankv.h)
+      sys.video_draw(bankv.id, (400 - bankv.w * s) / 2, (240 - bankv.h * s) / 2, s)
+    else
+      local name = (jp and "BankAnimation" or "BankAnimation_Eng") .. (dark and "_B" or "")
+      G.play(name, core.now() - w.opened, 200, 120, { ax = 0.5, ay = 0.5, fit = { 400, 240 } })
+    end
     local skip = "▶SKIP"
     G.text(skip, 396 - G.measure(skip), 4, 0x4d22cf6f)
     return true

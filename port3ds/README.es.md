@@ -54,6 +54,7 @@ tools/.venv/Scripts/python -I tools/resolve_sound_master.py "<juego>/Windose_Dat
 tools/.venv/Scripts/python -I tools/export_anims.py "<juego>/Windose_Data" build_data/needy3ds
 tools/.venv/Scripts/python -I tools/dump_prefabs.py "<juego>/Windose_Data" build_data/prefabs
 tools/.venv/Scripts/python -I tools/export_ideon.py .
+tools/.venv/Scripts/python -I tools/export_bank.py "<juego>/Windose_Data" build_data/needy3ds
 # 4. compilar el .3dsx (en MSYS2)
 ./build.sh
 ```

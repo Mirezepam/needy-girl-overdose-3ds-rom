@@ -23,7 +23,7 @@ local ROUTE = {
   TimePassDialog = { "bottom", "dialog" }, ShutDownDialog = { "bottom", "dialog" }, RebootDialog = { "bottom", "dialog" },
   LoadDialog = { "bottom", "dialog" }, EndingDialog = { "bottom", "dialog" }, sayonalastDialog = { "bottom", "dialog" },
   Psyche1 = { "top", "video" }, Psyche2 = { "top", "video" }, Psyche3 = { "top", "video" }, Psyche4 = { "top", "video" },
-  MediaPlayer = { "top", "video" },
+  MediaPlayer = { "none" }, MV = { "top", "video" },
   Event_Diary001 = { "both", "doc" }, Event_Diary002 = { "both", "doc" }, Event_Diary003 = { "both", "doc" }, Event_Diary004 = { "both", "doc" },
   MyDocument = { "bottom", "doc" }, TextEditor = { "bottom", "doc" }, Mail = { "bottom", "doc" }, YachinMail = { "bottom", "doc" },
   CrashMail = { "bottom", "doc" }, CrashNakami = { "fx", "crash" }, Sticky = { "bottom", "doc" }, Calendar = { "bottom", "doc" },

@@ -158,10 +158,14 @@ function M.draw(win, x0, y0, w0, h0)
   for i, it in ipairs(list) do
     if yy + it.e.h > y and yy < y + h then
       draw_tweet(it.e, x + 4, yy, selected == it.d)
-      if I.tapped(x + 4, math.max(yy, y + top), W, it.e.h) then selected = it.d end
+      local pick = I.tapped(x + 4, math.max(yy, y + top), W, it.e.h)
       if I.focusable("tw" .. i, x + 4, yy, W, it.e.h) then
         T.focus_ring(x + 4, yy, W, it.e.h - 2)
-        if I.activated("tw" .. i) then selected = it.d end
+        if I.activated("tw" .. i) then pick = true end
+      end
+      if pick then
+        selected = it.d
+        if it.e.image == "MV_thumbnail" then M.play_mv() end
       end
     end
     yy = yy + it.e.h + 2
@@ -170,6 +174,25 @@ function M.draw(win, x0, y0, w0, h0)
 end
 
 M.entry, M.draw_tweet, M.W = entry, draw_tweet, W
+
+-- PoketterCell.PlayMV: the INTERNET OVERDOSE video on the top screen; the clip has no sound, the
+-- song starts 2 s in on the BGM channel and the 8-bit version loops once the 224 s are over
+local mv_running = false
+function M.play_mv()
+  if mv_running then return end
+  mv_running = true
+  spawn(function()
+    AudioManager:StopBgm()
+    local w = WindowManager:open("MV")
+    core.wait_ms(2000)
+    AudioManager:PlayBgmByType("BGM_InternetOverdose", false)
+    local t0 = core.now()
+    while core.now() - t0 < 222 and WindowManager:find("MV") do core.wait_ms(250) end
+    if WindowManager:find("MV") then WindowManager:Close(w) end
+    AudioManager:PlayBgmByType("BGM_InternetOverdose8bit", true)
+    mv_running = false
+  end)
+end
 
 -- top screen: the selected tweet, picture at full size
 function M.draw_top(win)
