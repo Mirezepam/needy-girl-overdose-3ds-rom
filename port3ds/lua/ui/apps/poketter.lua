@@ -145,12 +145,22 @@ function M.draw(win, x0, y0, w0, h0)
   end
   local hist = pm.history
   local n = hist and hist.n or 0
+  -- PoketterCell2D.Show: a new tweet first opens its space (DOScaleY 0 -> 1 in 1 s, pushing the
+  -- older ones down) and then fades in (Fader2D 1 s)
+  local function anim(e)
+    if not e.born then return 1, 1 end
+    local t = core.now() - e.born
+    local q = math.min(1, t)
+    return 1 - (1 - q) ^ 2, math.max(0, math.min(1, t - 1))
+  end
   local list, total = {}, 0
   for i = n, math.max(1, n - 40), -1 do      -- newest first
     local d = hist.items[i]
     local e = entry(d)
-    list[#list + 1] = { d = d, e = e }
-    total = total + e.h + 2
+    local open, alpha = anim(e)
+    local hh = math.floor((e.h + 2) * open + 0.5)
+    list[#list + 1] = { d = d, e = e, hh = hh, alpha = alpha }
+    total = total + hh
   end
   if pm._tweetQueue.Count > 0 then
     G.draw("icon_loading_poketter_00" .. (math.floor(core.now() * 10) % 8), x + w / 2 - 8, y + 2, { fit = { 16, 16 } })
@@ -160,11 +170,11 @@ function M.draw(win, x0, y0, w0, h0)
   G.clip(x, y + top, w, h - top)
   local yy = y + top - sy
   for i, it in ipairs(list) do
-    if yy + it.e.h > y and yy < y + h then
-      local p = it.e.born and (core.now() - it.e.born) / 0.5 or 1
-      if p < 1 then
-        local k = 1 - (1 - p) ^ 2
-        G.push(0, -(1 - k) * 10, 1, k)
+    if it.alpha <= 0 then
+      -- still opening its space: nothing drawn yet
+    elseif yy + it.e.h > y and yy < y + h then
+      if it.alpha < 1 then
+        G.push(0, 0, 1, 1 - (1 - it.alpha) ^ 2)
         draw_tweet(it.e, x + 4, yy, selected == it.d)
         G.pop()
       else
@@ -180,7 +190,7 @@ function M.draw(win, x0, y0, w0, h0)
         if it.e.image == "MV_thumbnail" then M.play_mv() end
       end
     end
-    yy = yy + it.e.h + 2
+    yy = yy + it.hh
   end
   G.unclip()
 end

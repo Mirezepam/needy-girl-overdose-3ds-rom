@@ -132,15 +132,17 @@ function M.draw(win, x0, y0, w0, h0)
     entries[#entries + 1] = e
     total = total + e.h
   end
+  scroll.short = n <= 20
   local sy = T.scroller(scroll, x, y, w, lh, total + 6)
   G.clip(x, y, w, lh)
   local yy = y + 3 - sy
   for _, e in ipairs(entries) do
     if yy + e.h > y and yy < y + lh then
-      local p = e.born and (core.now() - e.born) / 0.45 or 1
+      -- JineCell2D: Fader2D.DOFade 0.4 s (0.2 s for the day separators), DOTween's OutQuad
+      local dur = (e.user == "separator" or e.user == "timeSeparator") and 0.2 or 0.4
+      local p = e.born and (core.now() - e.born) / dur or 1
       if p < 1 then
-        local k = 1 - (1 - p) ^ 2
-        G.push(0, (1 - k) * 8, 1, k)
+        G.push(0, 0, 1, 1 - (1 - p) ^ 2)
         draw_entry(e, x, yy, w - 4)
         G.pop()
       else
@@ -150,6 +152,13 @@ function M.draw(win, x0, y0, w0, h0)
     yy = yy + e.h
   end
   G.unclip()
+  -- "latest" (JINE_button_tobottom, 30x30 at the history's bottom right): shown when a message
+  -- arrived while scrolled up; pressing it scrolls down
+  if scroll.below then
+    local bx, by = math.floor(x + w - 25), math.floor(y + lh - 19)
+    G.draw("JINE_button_tobottom", bx, by, { fit = { 15, 15 } })
+    if I.tapped(bx - 3, by - 3, 21, 21) then T.scroll_to_bottom(scroll) end
+  end
   -- action panel
   local py = y + lh
   if panelH > 0 then T.panel(x, py, w, panelH) end

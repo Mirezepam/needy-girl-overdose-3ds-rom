@@ -1,6 +1,7 @@
 -- Windose look built from the game's own UI sprites and palette (taken from the original prefabs:
 -- WindowBase2D, BaseButton, InputFieldBackground...). UI art is drawn at scale 0.5: the game
 -- draws its pixel art at 2x on a 1080p canvas, so 0.5 shows it at native pixel size.
+local core = require("runtime.core")
 local G = require("runtime.gfx")
 local I = require("runtime.input")
 local K = I.KEY
@@ -120,25 +121,37 @@ end
 -- vertical scroll state helper: drag with stylus, Circle Pad scrolls
 function T.scroller(state, x, y, w, h, contentH)
   state.y = state.y or 0
-  -- drag with the stylus; released, the list keeps the flick speed and slows down
+  -- drag with the stylus; released, the list keeps the flick speed and slows down like a Unity
+  -- ScrollRect (inertia on, decelerationRate 0.135 per second)
   if I.touching_in(x, y, w, h) then
     state.y = state.y - I.drag_dy
     state.v = -I.drag_dy
+    state.anim = nil
   elseif state.v and state.v ~= 0 then
     state.y = state.y + state.v
-    state.v = math.abs(state.v) > 0.3 and state.v * 0.92 or 0
+    state.v = math.abs(state.v) > 0.3 and state.v * 0.967 or 0
   end
   if I.isheld(K.CUP) then state.y = state.y - 4 end
   if I.isheld(K.CDOWN) then state.y = state.y + 4 end
   local maxY = math.max(0, contentH - h)
-  -- lists that follow their newest item (JINE, chat) glide down to it instead of jumping
+  -- JineView2D.ScrollToLatest: when the content grows and the list is near the bottom (within
+  -- 15 %) or short (state.short), it scrolls down in 0.15 s (InQuad); otherwise the ToBottom
+  -- button appears (state.below) and does it when pressed (T.scroll_to_bottom)
   if state.stick_bottom then
-    if state.lastMax and state.y >= state.lastMax - 2 then state.follow = true end
-    if I.touching_in(x, y, w, h) and I.drag_dy > 0 then state.follow = false end
-    if state.follow then
-      state.y = state.y + (maxY - state.y) * 0.25
-      if math.abs(maxY - state.y) < 0.5 then state.y = maxY end
+    if state.lastMax and maxY > state.lastMax + 0.5 then
+      local fromBottom = state.lastMax - state.y
+      if state.short or fromBottom <= 0.15 * math.max(state.lastMax, 1) then
+        state.anim = { from = state.y, t0 = core.now() }
+      else
+        state.below = true
+      end
     end
+    if state.anim then
+      local k = math.min(1, (core.now() - state.anim.t0) / 0.15)
+      state.y = state.anim.from + (maxY - state.anim.from) * k * k
+      if k >= 1 then state.anim = nil end
+    end
+    if state.y >= maxY - 0.5 then state.below = false end
   end
   if state.y < 0 or state.y > maxY then state.v = 0 end
   state.y = math.max(0, math.min(maxY, state.y))
@@ -150,6 +163,10 @@ function T.scroller(state, x, y, w, h, contentH)
     G.rect(x + w - 4, by, 4, bh, 0xea9fe8ff)
   end
   return state.y
+end
+
+function T.scroll_to_bottom(state)
+  state.anim, state.below, state.v = { from = state.y or 0, t0 = core.now() }, false, 0
 end
 
 function T.dim(w) G.rect(0, 0, w or 400, 240, c.dim) end

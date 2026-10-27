@@ -337,8 +337,9 @@ end
 
 -- 16:9 wallpaper covering the 320x220 desktop (sides cropped, no bands above / below); also
 -- behind the app windows, whose area ends above the notification strip
--- WindowTweens.born / pop: a window that comes to the front grows out of its centre
-local OPEN_T = 0.14
+-- WindowTweens.born: a window that comes to the front scales from 0 to 1 in 0.1 s (DOScale,
+-- DOTween's default OutQuad ease), no fade
+local OPEN_T = 0.1
 local shown = { win = nil, t = 0 }
 local function open_anim(w, cx, cy, t0)
   if not t0 then
@@ -347,8 +348,8 @@ local function open_anim(w, cx, cy, t0)
   end
   local p = math.min(1, (core.now() - t0) / OPEN_T)
   if p >= 1 then return false end
-  local e = 1 - (1 - p) ^ 3
-  G.push_at(cx, cy, 0.25 + 0.75 * e, 0.3 + 0.7 * e)
+  local e = 1 - (1 - p) ^ 2
+  G.push_at(cx, cy, math.max(0.01, e), 1)
   return true
 end
 
