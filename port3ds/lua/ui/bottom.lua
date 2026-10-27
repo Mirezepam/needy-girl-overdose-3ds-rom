@@ -410,6 +410,9 @@ local function draw_desktop()
   end
   -- ShortCutParent children the story switched off (Ending_Completed's empty desktop)
   local SCENE_NAME = { live = "Live", asobu = "asobu", neru = "neru", okusuri = "okusuri", internet = "internet", odekake = "Odekake" }
+  -- EventManager.SetShortcutState(false, alpha): the shortcuts fade (0.2 on the first night, 0.4
+  -- during actions) and ignore taps, as on the PC desktop
+  local fade = (not hakkyo and shortcuts.interactable == false) and (shortcuts.alpha or 0.4) or 1
   for i, d in ipairs(DESKTOP) do
     local col, row = math.floor((i - 1) / 3), (i - 1) % 3
     local x, y = 4 + col * 66, 4 + row * 62
@@ -424,17 +427,17 @@ local function draw_desktop()
     if hinted then G.rect(x + 12, y, 40, 36, c.yellow) end
     local icon = d.icon
     if d.id == "neru" then icon = "icon_desktop_neru_" .. (({ [0] = "noon", "evening", "night" })[StatusManager:GetStatus("DayPart")] or "night") end
-    if T.icon("desk_" .. d.id, x, y, icon, label, badge) then
+    if fade < 1 then G.push(0, 0, 1, fade) end
+    local tapped = T.icon("desk_" .. d.id, x, y, icon, label, badge)
+    if fade < 1 then G.pop() end
+    if tapped then
       if hakkyo then WindowManager:NewWindow_2("Hakkyo")
+      elseif not enabled then -- blocksRaycasts = false: nothing happens
       elseif d.open then WindowManager:NewWindow_2(d.open)
-      elseif not enabled then AudioManager:PlaySeByType("SE_cancel")
       elseif d.action then run_action(d.action)
       else menu = d.menu; menuScroll.y = 0 end
     end
     ::next_icon::
-  end
-  if not enabled then
-    G.text_center("…", 160, 150, c.white)
   end
 end
 
