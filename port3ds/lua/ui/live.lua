@@ -44,7 +44,7 @@ function M.update(dt)
   if I.pressed(K.R) then live:ToggleSpeed() end
   if I.pressed(K.L) then live:DownSpeed() end
   if I.pressed(K.SELECT) then live:Skip() end
-  if I.pressed(K.A) and not I.focus_visible then live:NextSerihu() end
+  -- (no A to advance the subtitles: the original's Live.NextSerihu is private and never called)
 end
 
 local function lang() return Settings.CurrentLanguage.Value end
