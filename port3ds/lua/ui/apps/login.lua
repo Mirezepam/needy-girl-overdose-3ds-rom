@@ -30,7 +30,8 @@ function M.draw(win, x0, y0, w0, h0)
   if not G.draw9("InputFieldBackground", fx, fy, fw, 20, 0.5) then G.rect(fx, fy, fw, 20, c.white) end
   if typed == "" then G.text_center("password", fx + fw / 2, fy + 4, 0x4d22cf80)
   else G.text_center(typed, fx + fw / 2, fy + 4, c.ink) end
-  if I.tapped(fx, fy, fw, 20) then
+  if I.focusable("login_field", fx, fy, fw, 20) then T.focus_ring(fx, fy, fw, 20) end
+  if I.tapped(fx, fy, fw, 20) or I.activated("login_field") then
     local s = sys.keyboard("password", "", 20)
     if s then state.text = s end
   end

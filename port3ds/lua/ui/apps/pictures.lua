@@ -27,7 +27,11 @@ function M.draw(win, x0, y0, w0, h0)
     local bx, by = x + 4 + (i % 4) * 74, y + 4 + math.floor(i / 4) * 52 - sy
     G.rect(bx, by, 70, 48, 0x000000ff)
     G.draw(id, bx + 35, by + 24, { ax = 0.5, ay = 0.5, fit = { 70, 48 } })
-    if I.tapped(bx, math.max(by, y), 70, 48) then viewer.current = id end
+    if I.focusable("pic" .. i, bx, by, 70, 48) then
+      T.focus_ring(bx, by, 70, 48)
+      T.reveal(scroll, by, 48, y, h)
+    end
+    if I.tapped(bx, math.max(by, y), 70, 48) or I.activated("pic" .. i) then viewer.current = id end
   end
   G.unclip()
 end

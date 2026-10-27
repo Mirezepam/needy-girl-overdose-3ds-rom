@@ -165,6 +165,13 @@ function T.scroller(state, x, y, w, h, contentH)
   return state.y
 end
 
+-- D-pad focus on an item (screen y iy, height ih) partly outside a scroller view scrolls it in
+function T.reveal(state, iy, ih, vy, vh)
+  if iy < vy then state.y = (state.y or 0) - (vy - iy)
+  elseif iy + ih > vy + vh then state.y = (state.y or 0) + (iy + ih - vy - vh) end
+  state.v, state.anim = 0, nil
+end
+
 function T.scroll_to_bottom(state)
   state.anim, state.below, state.v = { from = state.y or 0, t0 = core.now() }, false, 0
 end

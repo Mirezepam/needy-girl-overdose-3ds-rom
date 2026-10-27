@@ -172,7 +172,12 @@ function M.draw(win, x0, y0, w0, h0)
   for i, it in ipairs(list) do
     if it.alpha <= 0 then
       -- still opening its space: nothing drawn yet
-    elseif yy + it.e.h > y and yy < y + h then
+    elseif not (yy + it.e.h > y and yy < y + h) then
+      -- off view: still reachable with the D-pad, which scrolls it in
+      I.focusable("tw" .. i, x + 4, yy, W, it.e.h)
+      if I.focus_visible and I.focus_id == "tw" .. i then T.reveal(scroll, yy, it.e.h, y + top, h - top) end
+    else
+      if I.focus_visible and I.focus_id == "tw" .. i then T.reveal(scroll, yy, it.e.h, y + top, h - top) end
       if it.alpha < 1 then
         G.push(0, 0, 1, 1 - (1 - it.alpha) ^ 2)
         draw_tweet(it.e, x + 4, yy, selected == it.d)

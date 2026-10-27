@@ -157,7 +157,8 @@ function M.draw(win, x0, y0, w0, h0)
   if scroll.below then
     local bx, by = math.floor(x + w - 25), math.floor(y + lh - 19)
     G.draw("JINE_button_tobottom", bx, by, { fit = { 15, 15 } })
-    if I.tapped(bx - 3, by - 3, 21, 21) then T.scroll_to_bottom(scroll) end
+    if I.focusable("jine_latest", bx - 3, by - 3, 21, 21) then T.focus_ring(bx - 1, by - 1, 17, 17) end
+    if I.tapped(bx - 3, by - 3, 21, 21) or I.activated("jine_latest") then T.scroll_to_bottom(scroll) end
   end
   -- action panel
   local py = y + lh

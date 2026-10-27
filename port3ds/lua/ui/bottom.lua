@@ -96,6 +96,11 @@ end
 
 -- ------------------------------------------------------------------ desktop
 local menu = nil   -- open action category
+-- D-pad focus landing on an action shows its description, like the mouse hover on PC
+local hoverId
+local function focus_hover(id, a)
+  if hoverId ~= id then hoverId = id; CommandManager:OnActionHovered_1(a) end
+end
 local goForced = false   -- menu opened by the GoOut window
 
 local function action_status(a)
@@ -252,6 +257,7 @@ local function draw_menu(enabled)
   local x, y, w, h = T.window(4, 4, 312, APP_H - 4, title)
   if forced then enabled = not StatusManager.Moved.Value
   elseif T.close("menu_close") then menu = nil; return end
+  if not I.focus_visible then hoverId = nil end
   local visible = {}
   for _, a in ipairs(list) do
     local s = action_status(a)
@@ -290,6 +296,7 @@ local function draw_menu(enabled)
         run_action(it.a)
       end
       if I.long_pressed(bx, by, cw, ch - 2) then CommandManager:OnActionHovered_1(it.a) end
+      if foc then T.reveal(menuScroll, by, ch - 2, y, h); focus_hover(id, it.a) end
     end
     G.unclip()
     if not I.touching and TooltipManager.current and TooltipManager.current.kind == "action" then
@@ -316,6 +323,7 @@ local function draw_menu(enabled)
       end
       -- long press: tooltip with the command description on the TOP screen
       if I.long_pressed(bx, by, bw, bh) then CommandManager:OnActionHovered_1(it.a) end
+      if I.focus_visible and I.focus_id == "act_" .. it.a then T.reveal(menuScroll, by, bh, y, h); focus_hover("act_" .. it.a, it.a) end
     end
   end
   G.unclip()

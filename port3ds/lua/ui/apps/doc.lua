@@ -70,7 +70,7 @@ function M.draw(win, x0, y0, w0, h0)
   if win.app == "Mail" then
     local pulse = 1 + math.sin(core.now() * 4) * 0.03
     G.draw("icon_window_mail", x + w / 2, y + h / 2, { ax = 0.5, ay = 0.5, fit = { 250 * pulse, 150 * pulse } })
-    if I.tapped(x, y, w, h) then WindowManager:NewWindow_2("YachinMail") end
+    if I.tapped(x, y, w, h) or (I.pressed(I.KEY.A) and not I.focus_visible) then WindowManager:NewWindow_2("YachinMail") end
     return
   end
   local _, th = G.measure(text, 1, w - 14)

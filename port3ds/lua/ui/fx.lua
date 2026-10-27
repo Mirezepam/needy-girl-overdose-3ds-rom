@@ -74,7 +74,9 @@ function M.draw_bottom(w)
       if win.alive and not win.top then
         left = left + 1
         T.window(win.x, win.y, 120, 70, w.app)
-        if I.tapped(win.x, win.y, 120, 70) then win.alive = false; AudioManager:PlaySeByType("SE_click") end
+        local id = "storm" .. i
+        if I.focusable(id, win.x, win.y, 120, 70) then T.focus_ring(win.x, win.y, 120, 70) end
+        if I.tapped(win.x, win.y, 120, 70) or I.activated(id) then win.alive = false; AudioManager:PlaySeByType("SE_click") end
       end
     end
   elseif k == "die" then
