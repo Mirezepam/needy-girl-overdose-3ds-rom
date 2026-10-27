@@ -13,7 +13,9 @@ function ui.init()
   title = require("ui.title")
   title.init(ui)
   -- development autoplay (sdmc:/3ds/needy3ds/autoplay.txt): start a new game in slot 3 and play
-  if sys.exists("sdmc:/3ds/needy3ds/autoplay.txt") then
+  -- never in a build that carries its data in the CIA (a test copy on a real console): a stray
+  -- autoplay.txt on the SD would make the game play by itself
+  if sys.data ~= "romfs:/" and sys.exists("sdmc:/3ds/needy3ds/autoplay.txt") then
     ui.autoplay = require("runtime.autoplay")
     ui.autoplay.log = function(...) LOG("[autoplay]", ...) end
     spawn(function() core.wait_ms(2500); ui.start_game({ lang = "es", slot = 3 }) end)
