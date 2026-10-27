@@ -98,6 +98,14 @@ local function schema_of(typeKey)
   return m
 end
 
+-- serialized class instances (list entries, nested objects) get their class so the game's
+-- getters and methods work on them (PlatformDiffAnimationEntity.PlatformDiffAnimationKey...)
+local function as_class(v, typeKey)
+  local C = classes[typeKey] or core.resolve(typeKey)
+  if type(v) == "table" and getmetatable(v) == nil and C and C ~= NULL and C.__mt then setmetatable(v, C.__mt) end
+  return v
+end
+
 local function convert(v, typeKey)
   local sc = schema_of(typeKey)
   if not sc or type(v) ~= "table" then return v end
@@ -107,12 +115,14 @@ local function convert(v, typeKey)
       local k, t = kind:match("^(%a+):(.+)$")
       if k == "E" then v[field] = ENUMN(t, x)
       elseif k == "LE" then local l = List.new(); for _, e in ipairs(x) do l:Add(ENUMN(t, e)) end v[field] = l
-      elseif k == "LC" then local l = List.new(); for _, e in ipairs(x) do l:Add(convert(e, t)) end v[field] = l
-      elseif k == "C" then v[field] = convert(x, t) end
+      elseif k == "LC" then local l = List.new(); for _, e in ipairs(x) do l:Add(as_class(convert(e, t), t)) end v[field] = l
+      elseif k == "C" then v[field] = as_class(convert(x, t), t) end
     end
   end
   return v
 end
+
+data.as_class = as_class
 
 function data.scriptable(typeName, name)
   local path = sys.data .. "data/so/" .. name .. ".lua"

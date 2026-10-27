@@ -32,8 +32,7 @@ function M.draw(win, x0, y0, w0, h0)
   else G.text_center(typed, fx + fw / 2, fy + 4, c.ink) end
   if I.focusable("login_field", fx, fy, fw, 20) then T.focus_ring(fx, fy, fw, 20) end
   if I.tapped(fx, fy, fw, 20) or I.activated("login_field") then
-    local s = sys.keyboard("password", "", 20)
-    if s then state.text = s end
+    core.keyboard("password", 20, function(s) if s then state.text = s end end)
   end
   local ok = typed == PASS or typed == "angelikawaii2"
   if T.button("login_go", x + w / 2 - 50, fy + 30, 100, 20, "login", { center = true, disabled = not ok }) then

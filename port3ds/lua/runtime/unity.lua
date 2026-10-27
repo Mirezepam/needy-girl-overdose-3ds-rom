@@ -76,6 +76,7 @@ GameObject.OnPointerDownAsObservable = function(self) return self:GetComponent("
 
 -- scene references declared on components: give each one a named UI object (schemas from cs2lua)
 local schemas
+local SO_REFS = { PlatformDiffAnimationMaster = true }   -- drug animations (Steam names)
 function core.bind_scene_refs(obj, className)
   schemas = schemas or require("schemas")
   local c = core.classes[className]
@@ -84,7 +85,12 @@ function core.bind_scene_refs(obj, className)
     if sc then
       for field, kind in pairs(sc) do
         local t = kind:match("^U:(.+)$")
-        if t and rawget(obj, field) == nil then
+        -- ScriptableObject assets dragged into a field that the game reads directly (the others
+        -- are served by the port's own managers)
+        local so = t and SO_REFS[t] and rawget(obj, field) == nil and require("runtime.data").scriptable(t, t)
+        if so then
+          rawset(obj, field, require("runtime.data").as_class(so, t))
+        elseif t and rawget(obj, field) == nil then
           local go = core.ui_find(className .. "." .. field)
           -- scene objects referenced this way start hidden until the game activates them
           if t == "GameObject" and rawget(go, "_fresh") == nil then rawset(go, "_active", false); rawset(go, "_fresh", false) end

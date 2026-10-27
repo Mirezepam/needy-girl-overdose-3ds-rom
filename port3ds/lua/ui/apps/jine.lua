@@ -176,8 +176,7 @@ function M.draw(win, x0, y0, w0, h0)
     end
   elseif status == "FreeForm" then
     if T.button("jfree", x + 4, py + 3, w - 8, 24, "✎ Escribir…", { fill = c.pi }) then
-      local s = sys.keyboard("JINE", "", 60)
-      if s and s ~= "" then JineManager:EndMessage(s) end
+      core.keyboard("JINE", 60, function(s) if s and s ~= "" then JineManager:EndMessage(s) end end)
     end
   elseif status == "Stamp" then
     if stampsOpen then

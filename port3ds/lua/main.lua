@@ -31,8 +31,18 @@ end
 local prof = { on = false, u = 0, d = 0, n = 0, show = "" }
 local ticks = sys.ticks or function() return 0 end
 
+-- the system keyboard is an applet: opening it while the GPU frame is being built (any draw
+-- code) can hang or crash a real console when it returns, so draw code only asks for it with
+-- core.keyboard(hint, maxLen, callback) and it opens here, between frames
+function core.keyboard(hint, maxLen, cb) core.kb_request = { hint = hint, max = maxLen, cb = cb } end
+
 function game.update(dt, down, held, up, tx, ty)
   local t0 = ticks()
+  local kb = core.kb_request
+  if kb then
+    core.kb_request = nil
+    kb.cb(sys.keyboard(kb.hint, "", kb.max))
+  end
   I.update(dt, down, held, up, tx, ty)
   if I.isheld(I.KEY.L) and I.isheld(I.KEY.R) and I.pressed(I.KEY.SELECT) then prof.on = not prof.on end
   core.update(dt)
