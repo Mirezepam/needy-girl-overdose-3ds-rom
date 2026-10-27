@@ -383,8 +383,15 @@ local function draw_desktop()
   if WindowManager:find("GoOut") and not StatusManager.Moved.Value then menu, goForced = "odekake", true
   elseif goForced then menu, goForced = nil, false end
   if menu then draw_menu(enabled) return end
+  -- the stream account login appears once the story asks for it: first free spot of the third
+  -- column (it used to sit on top of the Sleep icon, which then took or lost the tap)
+  local login = core.ui_state("LoginShortCut")
+  local loginShown = login.interactable == true and (login.alpha or 0) > 0
+  if loginShown then
+    if T.icon("desk_login", 136, 4, "icon_desktop_youtube", "Login", 1) then WindowManager:NewWindow_2("Login") end
+  end
   -- diary shortcuts the story unlocks (EventManager.PsycheNikkiN / LoveNikkiN SetActive(true))
-  local dx, dy = 140, 4
+  local dx, dy = loginShown and 202 or 136, 4
   local SHORTCUTS = {
     { "EventManager.PsycheNikki1", "PsycheNikki1" }, { "EventManager.PsycheNikki2", "PsycheNikki2" },
     { "EventManager.PsycheNikki3", "PsycheNikki3" }, { "EventManager.PsycheNikki4", "PsycheNikki4" },
@@ -397,14 +404,9 @@ local function draw_desktop()
       if T.icon("desk_doc" .. i, dx, dy, "icon_desktop_text", st("Shortcut_nikki") or "Diario") then
         WindowManager:NewWindow_2(sc[2])
       end
-      dx = dx + 64
-      if dx > 270 then dx, dy = 140, dy + 62 end
+      dx = dx + 66
+      if dx > 270 then dx, dy = 136, dy + 62 end
     end
-  end
-  -- the stream account login appears once the story asks for it
-  local login = core.ui_state("LoginShortCut")
-  if login.interactable == true and (login.alpha or 0) > 0 then
-    if T.icon("desk_login", 12, 140, "icon_desktop_youtube", "Login", 1) then WindowManager:NewWindow_2("Login") end
   end
   -- ShortCutParent children the story switched off (Ending_Completed's empty desktop)
   local SCENE_NAME = { live = "Live", asobu = "asobu", neru = "neru", okusuri = "okusuri", internet = "internet", odekake = "Odekake" }
@@ -440,14 +442,30 @@ end
 -- Notification prefab: tuuti card (light blue, ink shadow) with the app icon and one or two lines,
 -- sliding in from the right above the taskbar; tap opens it
 local NOTIF_ICON = { Jine = "icon_taskbar_jine", Poketter = "icon_taskbar_poketter", Webcam = "icon_jine_ame" }
+local function notif_rect(n)
+  local w, h = 210, 30
+  local slide = math.min(1, (core.now() - (n.born or 0)) / 0.25)
+  return 320 - (w + 4) * (1 - (1 - slide) ^ 2), TB_Y - h - 2, w, h
+end
+
+-- the card overlaps the bottom of the app window (y 188-202): it takes its tap before the app
+-- is drawn, or a button there (the stream's Pace / SKIP) swallowed it
+local function notif_tap()
+  local items = NotificationManager.items
+  if not items or #items == 0 then return end
+  local n = items[#items]
+  local x, y, w, h = notif_rect(n)
+  if I.tapped(x, y, w, h) then
+    if T.click_se then T.click_se() end
+    NotificationManager:click(n)
+  end
+end
+
 local function draw_notifications()
   local items = NotificationManager.items
   if not items or #items == 0 then return end
   local n = items[#items]
-  local w, h = 210, 30
-  local slide = math.min(1, (core.now() - (n.born or 0)) / 0.25)
-  local x = 320 - (w + 4) * (1 - (1 - slide) ^ 2)
-  local y = TB_Y - h - 2
+  local x, y, w, h = notif_rect(n)
   local timey = n.style == "time"
   if not G.draw9("tuuti", x, y, w, h, 0.5) then G.rect(x, y, w, h, 0xcdebfcff) end
   if timey then G.rect(x, y, w - 2, h - 2, math.floor((math.sin(core.now() * 6) * 0.5 + 0.5) * 0x50) + 0xff9fd600) end
@@ -460,7 +478,7 @@ local function draw_notifications()
     G.text_center(tostring(#items), x + w - 12, y + 2, c.white)
   end
   if I.focusable("notif", x, y, w, h) then T.focus_ring(x, y, w, h) end
-  if I.tapped(x, y, w, h) or I.activated("notif") then
+  if I.activated("notif") then
     if T.click_se then T.click_se() end
     NotificationManager:click(n)
   end
@@ -534,6 +552,7 @@ function M.draw()
   local chipget = app_module("chipget")
   local held_tap
   if paused or chipget.active() then held_tap, I.tap = I.tap, nil end
+  notif_tap()
   local f = WindowManager.focusBottom
   local mod = f and app_module(f.kind)
   local nade = app_module("nade")
