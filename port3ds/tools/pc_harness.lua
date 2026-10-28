@@ -358,6 +358,84 @@ local EVAL = os.getenv("NGO_EVAL")
 local injected = false
 local hold_until = 0
 local ev = {}
+-- NGO_UIBOT=1: plays only by touching what the UI shows (the rects widgets register for the
+-- D-pad), the way a player would; reports dead ends where the game stops moving
+local UIBOT = os.getenv("NGO_UIBOT") == "1"
+local ub = { sig = nil, since = 0, stucks = 0, taps = {}, last = nil }
+local UB_PRIORITY = { "^jopt", "^dlg_ok", "^chipget_ok", "^meta_", "^login_go", "^login_field", "^desk_login", "^neta_start",
+  "^ura_", "^wrist_go", "^ideon_start", "^desk_liveend", "^desk_himitu", "^dinder_like", "^cm%d", "^jfree", "^notif",
+  "^act_", "^drug_", "^chip", "^stamp", "^jstamps", "^desk_", "^tw%d", "^qs", "^tb_", "close" }
+local UB_IDLE = { "^jopt", "^dlg_ok", "^chipget_ok", "^meta_", "^login_go", "^desk_login", "^neta_start", "^chip",
+  "^ura_", "^wrist_go", "^ideon_start", "^desk_liveend", "^desk_himitu", "^dinder_like", "^jfree", "^notif", "^act_", "^drug_", "^tb_Drug",
+  "^desk_", "close" }
+local UB_AVOID = { start = true, skip = true, lang = true, load = true, new = true, day = true, lv_skip = true, lv_speed = true,
+  menu_close = true, drug_back = true, jine_latest = true, dinder_nope = true }
+-- NGO_UIBOT_SKIP="act_OdekakeZikka,..." keeps the bot away from early endings to cover more days
+local UB_SKIP = {}
+for id in (os.getenv("NGO_UIBOT_SKIP") or ""):gmatch("[^,]+") do UB_SKIP[id] = true end
+local function uibot()
+  for _, w in EACH(WindowManager.windows) do
+    if w.app == "EndingDialog" then print("== ENDING DIALOG:", EventManager.nowEnding); game.quit = true return end
+  end
+  if require("ui.bottom").app_module("endingblue").active() then
+    print("== ENDING DIALOG:", EventManager.nowEnding, "(blue screen)"); game.quit = true return
+  end
+  -- the head-pat minigame is a stylus stroke, not a tap
+  local nade = require("ui.bottom").app_module("nade")
+  if nade.active() then
+    if frame % 20 == 0 then nade.amehead.NadeCount.Value = nade.amehead.NadeCount.Value + 1 end
+    return
+  end
+  local list = core.input.last_focusables or {}
+  -- watchdog: day, part and event state must keep changing
+  local sig = StatusManager:GetStatus("DayIndex") .. "/" .. StatusManager:GetStatus("DayPart") .. "/" .. tostring(EventManager.isEventing)
+    .. "/" .. tostring(StatusManager.Moved.Value) .. "/" .. EventManager.eventQueue.Count
+  if sig ~= ub.sig then ub.sig, ub.since = sig, frame end
+  if frame - ub.since > 7200 then
+    ub.stucks = ub.stucks + 1
+    local ids = {}
+    for _, f in ipairs(list) do ids[#ids + 1] = f.id end
+    local wins = {}
+    for _, w in EACH(WindowManager.windows) do wins[#wins + 1] = w.app end
+    print("  [ui] STUCK", sig, "windows:", table.concat(wins, ","), "ui:", table.concat(ids, " "))
+    SNAPSHOT.pending = "./build_data/snaps/uibot_stuck_" .. ub.stucks .. ".json"
+    ub.since = frame
+    if ub.stucks >= 4 then game.quit = true return end
+  end
+  if pending_tap or frame % 30 ~= 0 then return end
+  local cands = {}
+  for _, f in ipairs(list) do
+    local cx, cy = f.x + f.w / 2, f.y + f.h / 2
+    if not UB_AVOID[f.id] and not (UB_SKIP and UB_SKIP[f.id]) and not f.id:match("^p_") and not f.id:match("^cp") and cx >= 0 and cx < 320 and cy >= 0 and cy < 240 then
+      cands[#cands + 1] = f
+    end
+  end
+  -- idle (no event, no action running): play like a player does, close apps and pick an action
+  local idle = not EventManager.isEventing and not StatusManager.Moved.Value and EventManager.eventQueue.Count == 0
+  -- streams bring followers (a player streams most turns; without them day 10 ends the game)
+  local unread = #NotificationManager.items > 0
+  if idle and not unread and math.random() < 0.5 then
+    for _, f in ipairs(cands) do
+      if f.id == "desk_live" or (f.id:match("^neta_start") or f.id:match("^chip")) then
+        tap(f.x + f.w / 2, f.y + f.h / 2); ub.taps[f.id] = (ub.taps[f.id] or 0) + 1
+        if os.getenv("NGO_UIBOT_V") then print("  [ui] tap", f.id, sig) end
+        return
+      end
+    end
+  end
+  for _, pat in ipairs(idle and UB_IDLE or UB_PRIORITY) do
+    local m = {}
+    for _, f in ipairs(cands) do if f.id:find(pat) then m[#m + 1] = f end end
+    if #m > 0 then
+      local f = m[math.random(#m)]
+      tap(f.x + f.w / 2, f.y + f.h / 2)
+      ub.taps[f.id] = (ub.taps[f.id] or 0) + 1
+      if os.getenv("NGO_UIBOT_V") then print("  [ui] tap", f.id, sig) end
+      return
+    end
+  end
+end
+
 local function bot()
   if EVAL and started and StatusManager.statuses and frame > 200 then
     local fn, err = load(EVAL)
@@ -408,6 +486,9 @@ local function bot()
       if os.getenv("NGO_SEED") then math.randomseed(tonumber(os.getenv("NGO_SEED"))) end
       require("ui.main").start_game({ lang = os.getenv("NGO_LANG") or "es", slot = 1, saveFile = os.getenv("NGO_CONT") })
       started = true
+      -- NGO_PRELUDE: Lua run right after the game starts (hooks for tracing)
+      local pre = os.getenv("NGO_PRELUDE")
+      if pre and pre ~= "" then local fn, e = load(pre); print("  >> PRELUDE", fn and select(2, pcall(fn)) or e) end
       if os.getenv("NGO_TRACECLEAR") == "1" then
         local f = EventManager.ClearEventQueue
         EventManager.ClearEventQueue = function(self, ...)
@@ -451,6 +532,7 @@ local function bot()
     end
     return
   end
+  if UIBOT and started and StatusManager.statuses then return uibot() end
   if frame % 20 ~= 0 then return end
   -- JINE options: choose the first one
   local opts = JineManager._options and JineManager._options.list

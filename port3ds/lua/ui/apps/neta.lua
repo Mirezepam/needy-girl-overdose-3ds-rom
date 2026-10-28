@@ -9,6 +9,7 @@ local c = T.c
 local M = { icon = "icon_desktop_youtube" }
 local ALPHAS = { "Zatudan", "Gamejikkyou", "Otakutalk", "Imbouron", "Kaidan", "ASMR", "Hnahaisin", "Kaisetu", "Taiken", "Yamihaishin", "PR", "Angel", "Darkness" }
 local chosen = nil
+local page = 0   -- NetachipChooser shows MAXCHIPSHOWING (10) topics per page
 local function lang() return Settings.CurrentLanguage.Value end
 
 local function chip_info(alpha, level)
@@ -70,12 +71,23 @@ function M.draw(win, x0, y0, w0, h0)
     if I.tapped(x + w / 2 - 60, y + 136, 120, 18) or I.pressed(I.KEY.B) then chosen = nil end
     return
   end
-  -- ChipPage: every topic, discovered ones with their level chip, the rest as ???
+  -- ChipPage: every topic, discovered ones with their level chip, the rest as ???, 10 per page
+  -- with the PagingPrev / PagingNext arrows
   local cols, cw, ch = 2, (w - 12) / 2, 25
+  local pages = math.ceil(#ALPHAS / 10)
+  if page >= pages then page = 0 end
+  if pages > 1 then
+    local py = y + h - 22
+    if T.button("neta_prev", x + w / 2 - 60, py, 24, 18, "◀", { center = true, flat = true, disabled = page == 0 }) then page = page - 1 end
+    G.text_center((page + 1) .. " / " .. pages, x + w / 2, py + 3, c.white)
+    if T.button("neta_next", x + w / 2 + 36, py, 24, 18, "▶", { center = true, flat = true, disabled = page == pages - 1 }) then page = page + 1 end
+  end
   local i = 0
-  for _, a in ipairs(ALPHAS) do
+  for k, a in ipairs(ALPHAS) do
+    if k <= page * 10 or k > (page + 1) * 10 then goto next_chip end
     local lv = NetaManager:GetAlphaChipLevel(a) or 0
-    if a ~= "Darkness" or lv > 0 then
+    -- NetachipChooser.ShowAlphaChip lists every AlphaType (undiscovered ones gray, ???)
+    do
       i = i + 1
       local used = lv > 0 and NetaManager.usedAlpha:Exists(function(al) return al.alphaType == a and al.level == lv end)
       local it = { alpha = a, level = lv, used = used }
@@ -84,11 +96,13 @@ function M.draw(win, x0, y0, w0, h0)
       draw_chip(bx, by, cw, ch, it)
       local id = "chip" .. a
       if I.focusable(id, bx, by, cw, ch) then T.focus_ring(bx, by, cw, ch) end
-      if lv > 0 and (I.tapped(bx, by, cw, ch) or I.activated(id)) then
+      -- NetaChipAlpha.SetData: a topic already streamed at this level is not interactable
+      if lv > 0 and not used and (I.tapped(bx, by, cw, ch) or I.activated(id)) then
         if T.click_se then T.click_se() end
         chosen = it
       end
     end
+    ::next_chip::
   end
 end
 

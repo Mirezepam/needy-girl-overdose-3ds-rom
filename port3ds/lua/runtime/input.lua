@@ -79,6 +79,9 @@ function I.focusable(id, x, y, w, h)
   return I.focus_visible and I.focus_id == id
 end
 
+-- an overlay (modal dialog, start menu) drops what was registered below it
+function I.focus_reset() focusables = {} end
+
 function I.activated(id)
   return I.focus_visible and I.focus_id == id and I.pressed(K.A)
 end
@@ -87,6 +90,7 @@ local function center(f) return f.x + f.w / 2, f.y + f.h / 2 end
 
 function I.focus_update()
   prev, focusables = focusables, {}
+  I.last_focusables = prev   -- (test bots tap these)
   if I.tap_down then I.focus_visible = false end
   local dir
   if I.pressed(K.DUP) or I.pressed(K.CUP) then dir = "up"

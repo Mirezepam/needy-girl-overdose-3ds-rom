@@ -104,8 +104,9 @@ function M.draw(win, x0, y0, w0, h0)
   end
   local x, y, w, h = T.window(70, 40, 246, h0 - 44, TITLES[front] or front, "icon_desktop_internet")
   draw_page(front, x, y, w, h, true)
-  -- App_taiki's "start" button (ActionIdeon): starts the last stream (throttled 2 s like the original)
-  if WindowManager:find("Ideon_taiki") and not StatusManager.Moved.Value and not EventManager.isEventing then
+  -- App_taiki's "start" button (ActionIdeon): always interactable, starts the last stream
+  -- (ThrottleFirst 2 s like the original)
+  if WindowManager:find("Ideon_taiki") then
     local label = T.st("Shortcut_Haishin", "Live")
     if T.button("ideon_start", 4, h0 - 32, 62, 26, label, { center = true }) and core.now() - (M.started or -10) > 2 then
       M.started = core.now()

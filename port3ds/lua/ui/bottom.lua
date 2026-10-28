@@ -133,6 +133,20 @@ function M.action_status(a, opened)
 end
 local function action_status(a) return M.action_status(a, menuOpened) end
 
+-- buttons the original windows don't show: the Odekake map has Jikka and Odaiba inactive (only
+-- the story sends Ame home) and GingaStation only on a gangimari day after Kaidan lv5; the pill
+-- windows open by Yami (Shortcut.openPillWindows: Puron 20, Hipuron 40, Happa 60, Psyche 80)
+local PILL_YAMI = { OkusuriPuronModerate = 20, OkusuriPuronOverdose = 20, OkusuriHipuronModerate = 40,
+                    OkusuriHiPuronOverdose = 40, OkusuriHappa = 60, OkusuriPsyche = 80 }
+local function window_hides(a)
+  if a == "OdekakeZikka" or a == "OdekakeOdaiba" then return true end
+  if a == "OdekakeGinga" then
+    return not (StatusManager.isTodayGangimari and NetaManager.usedAlpha:Exists(function(al) return al.alphaType == "Kaidan" and al.level == 5 end))
+  end
+  local y = PILL_YAMI[a]
+  return y ~= nil and StatusManager:GetStatus("Yami") < y
+end
+
 local function run_action(a)
   if StatusManager.Moved.Value then return end
   menu = nil
@@ -155,7 +169,7 @@ local MENUS = {
   internet = { "InternetYoutube", "InternetPoketter", "InternetPoketterEgosa", "Internet2ch", "InternetDeai" },
   ame = { "PlayIchatuku", "PlayMakeLove", "EntameGame" },
   okusuri = { "OkusuriDaypassModerate", "OkusuriDaypassOverdose", "OkusuriPuronModerate", "OkusuriPuronOverdose",
-              "OkusuriHiPuronOverdose", "OkusuriHappa", "OkusuriPsyche" },
+              "OkusuriHipuronModerate", "OkusuriHiPuronOverdose", "OkusuriHappa", "OkusuriPsyche" },
   neru = { "SleepToTwilight", "SleepToNight", "SleepToTomorrow" },
   odekake = { "OdekakeNakano", "OdekakeHarajuku", "OdekakeAkihabara", "OdekakeShibuya", "OdekakeIkebukuro", "OdekakeUeno",
               "OdekakeJinbocho", "OdekakeShimokitazawa", "OdekakeKichijoji", "OdekakeGisneyland", "OdekakeHikarigaokaPark",
@@ -194,7 +208,7 @@ local DRUGS = {
     acts = { "OkusuriDaypassModerate", "OkusuriDaypassOverdose" } },
   { key = "puron", art = "bron_base", acts = { "OkusuriPuronModerate", "OkusuriPuronOverdose" } },
   { key = "hyporon", art = "icon_window_hiporon_none", tablet = "icon_window_hiporon_capsule1",
-    acts = { "OkusuriHiPuronOverdose" } },
+    acts = { "OkusuriHipuronModerate", "OkusuriHiPuronOverdose" } },
   { key = "happa", art = "icon_window_happa", acts = { "OkusuriHappa" } },
   { key = "psyche", art = "icon_window_psyche", acts = { "OkusuriPsyche" } },
 }
@@ -283,7 +297,7 @@ local function draw_menu(enabled)
   local visible = {}
   for _, a in ipairs(list) do
     local s = action_status(a)
-    if s ~= "Invisible" then visible[#visible + 1] = { a = a, s = s }; M.visible_actions[a] = true end
+    if s ~= "Invisible" and not window_hides(a) then visible[#visible + 1] = { a = a, s = s }; M.visible_actions[a] = true end
   end
   -- TitleGroup of the original act windows: pink circle with the category icon, title, gray line
   G.rect(x, y, w, h, c.white)
@@ -315,7 +329,10 @@ local function draw_menu(enabled)
       if foc then T.focus_ring(bx + 2, by, cw - 4, ch - 4) end
       if not yada and (I.tapped(bx, by, cw, ch - 2) or I.activated(id)) then
         if T.click_se then T.click_se() end
+        -- the action closes the menu: stop drawing it (the next icons would read ACT_ICON[nil])
+        G.unclip()
         run_action(it.a)
+        return
       end
       if I.long_pressed(bx, by, cw, ch - 2) then CommandManager:OnActionHovered_1(it.a) end
       if foc then T.reveal(menuScroll, by, ch - 2, y, h); focus_hover(id, it.a) end
@@ -341,7 +358,9 @@ local function draw_menu(enabled)
       local yada = it.s == "Yada"
       local hinted = CommandManager.isHinted and CommandManager:isHinted(it.a)
       if T.button("act_" .. it.a, bx, by, bw, bh, cmd_title(it.a), { disabled = yada or not enabled, fill = hinted and c.yellow or nil, maxLines = 2 }) then
+        G.unclip()
         run_action(it.a)
+        return
       end
       -- long press: tooltip with the command description on the TOP screen
       if I.long_pressed(bx, by, bw, bh) then CommandManager:OnActionHovered_1(it.a) end
@@ -440,6 +459,19 @@ local function draw_desktop()
       if dx > 270 then dx, dy = 136, dy + 62 end
     end
   end
+  -- Shortcut.cs: Live works only at night (DayPart 2) and not while streams are suspended
+  -- (kyuusiCount); Pills is off once Angel lv5 was streamed. Their Button is then not interactable
+  -- (Unity's disabled tint) and the TooltipCaller says why; on the 3DS a tap shows it on top.
+  local function blocked(d)
+    if d.id == "live" and not EventManager.isTestScene then
+      if (EventManager.kyuusiCount or 0) > 0 then return "tooltip_kyuusi" end
+      if StatusManager:GetStatus("DayPart") ~= 2 then return NgoEx.SystemTextFromType("System_CollectNeta", lang()) end
+    elseif d.id == "okusuri" and NetaManager.usedAlpha:Exists(function(al) return al.alphaType == "Angel" and al.level == 5 end) then
+      return "Tooltip_Angel"
+    end
+  end
+  local tip = TooltipManager.current
+  if tip and tip.shortcut and core.now() - tip.t > 3 then TooltipManager:Hide() end
   -- ShortCutParent children the story switched off (Ending_Completed's empty desktop)
   local SCENE_NAME = { live = "Live", asobu = "asobu", neru = "neru", okusuri = "okusuri", internet = "internet", odekake = "Odekake" }
   -- EventManager.SetShortcutState(false, alpha): the shortcuts fade (0.2 on the first night, 0.4
@@ -459,12 +491,19 @@ local function draw_desktop()
     if hinted then G.rect(x + 12, y, 40, 36, c.yellow) end
     local icon = d.icon
     if d.id == "neru" then icon = "icon_desktop_neru_" .. (({ [0] = "noon", "evening", "night" })[StatusManager:GetStatus("DayPart")] or "night") end
-    if fade < 1 then G.push(0, 0, 1, fade) end
+    local why = not hakkyo and blocked(d)
+    local a = fade * (why and 0.5 or 1)
+    if a < 1 then G.push(0, 0, 1, a) end
     local tapped = T.icon("desk_" .. d.id, x, y, icon, label, badge)
-    if fade < 1 then G.pop() end
+    if a < 1 then G.pop() end
     if tapped then
       if hakkyo then WindowManager:NewWindow_2("Hakkyo")
       elseif not enabled then -- blocksRaycasts = false: nothing happens
+      elseif why then
+        if why:match("^[%w_]+$") then TooltipManager:Show_2(why) else TooltipManager:show(why, "tip") end
+        TooltipManager.current.shortcut = true
+      elseif d.id == "live" and EventManager.isGedatsu then
+        spawn(function() EventManager:AddEvent_1("Action_HaishinStart") end)
       elseif d.open then WindowManager:NewWindow_2(d.open)
       elseif d.action then run_action(d.action)
       else menu = d.menu; menuScroll.y = 0; menuOpened = core.now() end
@@ -583,10 +622,13 @@ function M.draw()
   local meta = app_module("metacover")
   if meta.active() then meta.draw_bottom() return end
 
-  -- while the start menu or the new-idea cover is open it gets the tap; the UI below only draws
+  -- while the start menu, the new-idea cover or a modal dialog is open it gets the tap; the UI
+  -- below only draws (a dialog is drawn after the desktop, whose icons took its taps)
   local chipget = app_module("chipget")
+  local modal = false
+  for _, w in EACH(WindowManager.windows) do if w.kind == "dialog" then modal = true break end end
   local held_tap
-  if paused or chipget.active() then held_tap, I.tap = I.tap, nil end
+  if paused or chipget.active() or modal then held_tap, I.tap = I.tap, nil end
   notif_tap()
   local f = WindowManager.focusBottom
   local mod = f and app_module(f.kind)
@@ -610,6 +652,10 @@ function M.draw()
   draw_notifications()
   draw_taskbar()
   -- modal dialogs and full-screen effects always on top
+  if modal then
+    I.focus_reset()   -- nothing below a modal window can take the D-pad focus
+    if not paused and not chipget.active() then I.tap = held_tap end
+  end
   for _, w in EACH(WindowManager.windows) do
     if w.kind == "dialog" then
       local anim = open_anim(w, 160, 120, w.opened or 0)
@@ -619,10 +665,12 @@ function M.draw()
   end
   for _, w in ipairs(WindowManager:fxWindows()) do require("ui.fx").draw_bottom(w) end
   if chipget.active() and not paused then
+    I.focus_reset()
     I.tap = held_tap
     chipget.draw()
   end
   if paused then
+    I.focus_reset()
     I.tap = held_tap
     if pause.draw(function() paused = false end) then paused = false end
   end
