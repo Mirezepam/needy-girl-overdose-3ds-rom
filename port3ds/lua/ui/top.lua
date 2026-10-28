@@ -264,10 +264,12 @@ end
 
 -- package insert of a drug (YakujoUnit: name, dose, effects, side effects, Ame's memo), pink
 -- headings (#e992c8) over ink text, like the right half of the App_Kusuri* windows
+-- the pill windows (PillDypass...) are titled with their yakujo_N entry
+local PILL_APP = { dypass = "PillDypass", puron = "PillPuron", hyporon = "PillHipron", happa = "PillHappa", psyche = "PillPsyche" }
 local function draw_insert(key)
   local function y(k) local v = NgoEx.yakujo(key, k, lang()); return (v ~= NULL and v) or "" end
   local function head(k) local v = NgoEx.yakujo("midasi", k, lang()); return (v ~= NULL and v) or k end
-  local x0, y0, w0, h0 = T.window(60, 20, 280, 214, T.tr(T.YAKUJO_TITLE), "icon_desktop_okusuri")
+  local x0, y0, w0, h0 = T.window(60, 20, 280, 214, T.app_title(PILL_APP[key] or "Pills"), "icon_desktop_okusuri")
   G.rect(x0, y0, w0, h0, c.white)
   local yy = y0 + 4
   G.text(y("namae"), x0 + 6, yy, c.ink, 1, w0 - 12, 2)

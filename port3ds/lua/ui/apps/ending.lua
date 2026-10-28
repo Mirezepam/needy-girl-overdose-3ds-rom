@@ -45,7 +45,7 @@ local function feed(win)
 end
 
 function M.draw(win, x0, y0, w0, h0)
-  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, "poketter", "icon_taskbar_poketter")
+  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, T.app_title(win.app, "poketter"), "icon_taskbar_poketter")
   G.clip(x, y, w, h)
   for ty = y, y + h, 183 do
     for tx = x, x + w, 183 do G.draw("result_bg_tile", tx, ty, { w = 183, h = 183 }) end

@@ -30,8 +30,6 @@ end
 local function item_text(it)
   if it.id then
     local s = data.any_text(it.id)
-    -- a few site labels are Japanese in every table: say them in the player's language
-    if s == "にゅーす" then return T.tr({ es = "Noticias", en = "News", ja = "にゅーす" }) end
     if s and s ~= "" then return s end
   end
   local t = it.t
@@ -97,12 +95,12 @@ function M.draw(win, x0, y0, w0, h0)
   for i, w in ipairs(list) do
     if w.app ~= front then
       local bx, by = 4 + (i - 1) * 16, 4 + (i - 1) * 12
-      local x, y, ww, hh = T.window(bx, by, 200, 110, TITLES[w.app] or w.app, "icon_desktop_internet")
+      local x, y, ww, hh = T.window(bx, by, 200, 110, T.app_title(w.app, TITLES[w.app]), "icon_desktop_internet")
       draw_page(w.app, x, y, ww, hh, false)
       if I.tapped(bx, by, 200, 110) then front = w.app; AudioManager:PlaySeByType("SE_click") end
     end
   end
-  local x, y, w, h = T.window(70, 40, 246, h0 - 44, TITLES[front] or front, "icon_desktop_internet")
+  local x, y, w, h = T.window(70, 40, 246, h0 - 44, T.app_title(front, TITLES[front]), "icon_desktop_internet")
   draw_page(front, x, y, w, h, true)
   -- App_taiki's "start" button (ActionIdeon): always interactable, starts the last stream
   -- (ThrottleFirst 2 s like the original)

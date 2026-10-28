@@ -16,38 +16,83 @@ local function st(id, fallback)
   return (ok and type(s) == "string" and s ~= "") and s or fallback
 end
 
--- Control panel (ControllPanel button): volumes, stream speed, text skip, endings seen
+-- Control panel (ControllPanelView): BGM and SE sliders 0-100 applied while dragging (SE_per as
+-- the SE one moves), the language toggles, OK (saves volumes + language) and Cancel / x / B
+-- (back to the volumes it opened with). Resolution and vibration are PC / console only.
+local cp
+local LANG_TOGGLES = { { "JP", "日本語" }, { "EN", "English" }, { "SP", "Español" } }
+local LANG_FILE = { JP = "ja", EN = "en", SP = "es" }
+
+-- a Slider: drag with the stylus, or D-pad left / right when focused
+local function slider(id, x, y, w, v)
+  G.rect(x, y + 7, w, 4, 0xcdebfcff)
+  G.rect(x, y + 7, w * v / 100, 4, c.sky)
+  local kx = x + w * v / 100
+  G.rect(kx - 4, y + 2, 8, 14, c.white)
+  G.frame_rect(kx - 4, y + 2, 8, 14, c.ink, 1)
+  local foc = I.focusable(id, x - 4, y, w + 8, 18)
+  if foc then T.focus_ring(x - 4, y, w + 8, 18) end
+  if I.touching_in(x - 6, y - 4, w + 12, 26) then v = (I.tx - x) / w * 100
+  elseif foc and (I.isheld(I.KEY.DLEFT) or I.isheld(I.KEY.DRIGHT)) then
+    cp.rep = (cp.rep or 0) + 1
+    if cp.rep == 1 or cp.rep > 20 and cp.rep % 3 == 0 then v = v + (I.isheld(I.KEY.DRIGHT) and 1 or -1) end
+  elseif foc then cp.rep = 0 end
+  return math.max(0, math.min(100, math.floor(v + 0.5)))
+end
+
+local function reset_volume()
+  AudioManager:ChangeVolume("BGM", cp.bgm0 / 100)
+  AudioManager:ChangeSeVolume(cp.se0 / 100)
+end
+
 local function control_panel(on_close)
-  local x, y, w, h = T.window(10, 8, 300, 206, st("Start_Menu_Config", "Panel de control"), "icon_gear")
-  if T.close("cp_close") or I.pressed(I.KEY.B) then
-    panel = false
+  if not cp then
+    local b, s0 = math.floor((Settings.BgmVolume or 0.6) * 100 + 0.5), math.floor((Settings.SeVolume or 0.8) * 100 + 0.5)
+    cp = { bgm = b, se = s0, bgm0 = b, se0 = s0, lang = Settings.CurrentLanguage.Value, seT = -10 }
+  end
+  local function close()
+    panel, cp = false, nil
     if on_close then on_close() end
+  end
+  local x, y, w, h = T.window(10, 8, 300, 206, st("Start_Menu_Config", "Panel de control"), "icon_gear")
+  if T.close("cp_close") or I.pressed(I.KEY.B) then reset_volume(); close() return end
+  G.rect(x, y, w, h, c.paper)
+  local yy = y + 8
+  G.text(st("Config_BGM", "BGM"), x + 8, yy + 3, c.ink, 1, 70, 1)
+  local nb = slider("cp_bgm", x + 84, yy, 160, cp.bgm)
+  G.text(tostring(nb), x + 254, yy + 3, c.ink)
+  if nb ~= cp.bgm then cp.bgm = nb; AudioManager:ChangeVolume("BGM", nb / 100) end
+  yy = yy + 30
+  G.text(st("Config_SE", "SE"), x + 8, yy + 3, c.ink, 1, 70, 1)
+  local ns = slider("cp_se", x + 84, yy, 160, cp.se)
+  G.text(tostring(ns), x + 254, yy + 3, c.ink)
+  if ns ~= cp.se then
+    cp.se = ns
+    AudioManager:ChangeSeVolume(ns / 100)
+    if core.now() - cp.seT > 1.6 then cp.seT = core.now(); AudioManager:PlaySeByType("SE_per") end
+  end
+  yy = yy + 34
+  G.text(st("Config_Language", "Language"), x + 8, yy, c.ink, 1, w - 16, 1)
+  yy = yy + 16
+  for i, l in ipairs(LANG_TOGGLES) do
+    local bx = x + 8 + (i - 1) * 94
+    if T.button("cp_lang" .. i, bx, yy, 88, 22, l[2], { center = true, fill = cp.lang == l[1] and c.yellow or nil }) then cp.lang = l[1] end
+  end
+  local by = y + h - 30
+  if T.button("cp_ok", x + w / 2 - 116, by, 110, 22, st("Dialog_OK", "OK"), { center = true }) then
+    if cp.lang ~= Settings.CurrentLanguage.Value and LANG_FILE[cp.lang] then
+      require("runtime.data").load(LANG_FILE[cp.lang])
+      Settings:ChangeLanguage(cp.lang)
+      sys.write("sdmc:/3ds/needy3ds/save/port_lang.txt", LANG_FILE[cp.lang])
+    end
+    Settings.BgmVolume, Settings.SeVolume = cp.bgm / 100, cp.se / 100
+    spawn(function() Settings:Save() end)
+    close()
     return
   end
-  G.rect(x, y, w, h, c.paper)
-  local yy = y + 6
-  local bgm = math.floor((AudioManager.bgmVolume or 0.8) * 10 + 0.5)
-  G.text(T.tr({ es = "Música: ", en = "Music: ", ja = "BGM：" }) .. bgm, x + 8, yy + 6, c.ink)
-  if T.button("p_bgm-", x + 150, yy, 40, 22, "-", { center = true }) then AudioManager:ChangeMasterVolume(math.max(0, (bgm - 1) / 10)) end
-  if T.button("p_bgm+", x + 196, yy, 40, 22, "+", { center = true }) then AudioManager:ChangeMasterVolume(math.min(1, (bgm + 1) / 10)) end
-  yy = yy + 28
-  local se = math.floor((AudioManager.seVolume or 0.9) * 10 + 0.5)
-  G.text(T.tr({ es = "Efectos: ", en = "Sound effects: ", ja = "効果音：" }) .. se, x + 8, yy + 6, c.ink)
-  if T.button("p_se-", x + 150, yy, 40, 22, "-", { center = true }) then AudioManager.seVolume = math.max(0, (se - 1) / 10) end
-  if T.button("p_se+", x + 196, yy, 40, 22, "+", { center = true }) then AudioManager.seVolume = math.min(1, (se + 1) / 10) end
-  yy = yy + 28
-  local sp = Settings.haishinSpeed or 0
-  G.text(T.tr({ es = "Velocidad del directo: ", en = "Stream speed: ", ja = "配信スピード：" }) .. (sp + 1), x + 8, yy + 6, c.ink)
-  if T.button("p_speed", x + 196, yy, 86, 22, T.tr({ es = "Cambiar", en = "Change", ja = "変更" }), { center = true }) then
-    Settings.haishinSpeed = (sp + 1) % 3
-    spawn(function() Settings:Save() end)
+  if T.button("cp_cancel", x + w / 2 + 6, by, 110, 22, st("Dialog_Cancell", "Cancel"), { center = true }) then
+    reset_volume(); close()
   end
-  yy = yy + 28
-  G.text(T.tr({ es = "Saltar texto (SELECT): ", en = "Skip text (SELECT): ", ja = "テキストスキップ（SELECT）：" }) .. (core.fast and T.tr({ es = "Sí", en = "On", ja = "ON" }) or T.tr({ es = "No", en = "Off", ja = "OFF" })), x + 8, yy + 6, c.ink)
-  if T.button("p_fast", x + 196, yy, 86, 22, T.tr({ es = "Cambiar", en = "Change", ja = "変更" }), { center = true }) then core.fast = not core.fast end
-  yy = yy + 30
-  local seen, total = require("ui.apps.endingblue").progress()
-  G.text(T.tr({ es = "Finales vistos: ", en = "Endings seen: ", ja = "見たエンディング：" }) .. seen .. " / " .. total, x + 8, yy + 4, c.lilacDark)
 end
 
 -- returns true when the menu should close

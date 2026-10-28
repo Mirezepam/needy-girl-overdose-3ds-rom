@@ -161,9 +161,14 @@ local function run_action(a)
     WindowManager:NewWindow_2("NetaChoose")
     return
   end
-  -- "Citas" opens the Dinder app; its Like button runs the action
+  -- App_Internet: "Citas" and the board are Shortcuts that open Dinder / Keijiban; their own
+  -- ActionButtons (Like, the board's reply button) run the action
   if a == "InternetDeai" then
     WindowManager:NewWindow_2("Dinder")
+    return
+  end
+  if a == "Internet2ch" then
+    WindowManager:NewWindow_2("Keijiban")
     return
   end
   CommandManager:CommandAction_2(a)
@@ -648,7 +653,7 @@ function M.draw()
     mod.draw(f, 0, 0, 320, APP_H)
     if anim then G.pop() end
   elseif f then
-    local x, y = T.window(4, 4, 312, APP_H - 4, f.app)
+    local x, y = T.window(4, 4, 312, APP_H - 4, T.app_title(f.app))
     G.text("(" .. f.app .. ")", x + 4, y + 4, c.inkSoft)
     if f.closeable and T.close("close_generic") then WindowManager:Close(f) end
   else

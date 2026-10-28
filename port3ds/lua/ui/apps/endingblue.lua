@@ -72,20 +72,75 @@ local function proceed()
     return
   end
   EventManager.nowEnding = "Ending_None"
+  -- EndingManager: the ChooseZip scene (EndingOmake) until the 30 zips are open, then BiosToLoad
+  if not Settings:checkAllZipUnlocked() then
+    state = { zip = true, t0 = core.now() }
+    return
+  end
   require("ui.bottom").app_module("dialog").reboot()
+end
+
+-- EndingOmake: 30 EndingZip buttons (an opened one is not interactable); opening one shows its
+-- fan art (every 30th of the @ list from zip-1, SE_tweet_load 120 ms apart), Settings.OpenZip
+-- unlocks them in My Pictures, and continue goes to BiosToLoad
+local function draw_zip()
+  G.rect(0, 0, 320, 240, BLUE)
+  local z = state
+  if not z.open then
+    for i = 1, 30 do
+      local x, y = 12 + ((i - 1) % 6) * 50, 12 + math.floor((i - 1) / 6) * 40
+      local done = Settings.unLockedZip:Contains(i)
+      if done then G.push(0, 0, 1, 0.4) end
+      G.draw("icon_desktop_folder_zip", x + 9, y, { fit = { 28, 28 } })
+      G.text_center(tostring(i), x + 23, y + 26, c.white)
+      if done then G.pop() end
+      local id = "zip" .. i
+      if I.focusable(id, x, y, 46, 38) then T.focus_ring(x, y, 46, 38) end
+      if not done and (I.tapped(x, y, 46, 38) or I.activated(id)) then
+        AudioManager:PlaySeByType("SE_piporo")
+        local list, ids = ImageViewerHelper.LoadFanArtList(), List.new()
+        local pics = {}
+        for k = i - 1, list.Count - 1, 30 do
+          local r = list:__idx(k)
+          pics[#pics + 1] = r.FileName
+          ids:Add(r.FileName)
+        end
+        z.open, z.pics, z.shown, z.t = i, pics, 0, core.now()
+        Settings:OpenZip(i, ids)
+      end
+    end
+    if Settings:checkAllZipUnlocked() and T.button("zip_continue", 130, 212, 60, 22, "▶", { center = true }) then
+      require("ui.bottom").app_module("dialog").reboot()
+    end
+    return
+  end
+  -- the opened zip: its pictures appear one by one
+  G.text(tostring(z.open), 8, 4, c.white)
+  local due = math.floor((core.now() - z.t) / 0.12) + 1
+  while z.shown < math.min(due, #z.pics) do
+    z.shown = z.shown + 1
+    AudioManager:PlaySeByType("SE_tweet_load")
+  end
+  for k = 1, z.shown do
+    local x, y = 8 + ((k - 1) % 5) * 61, 20 + math.floor((k - 1) / 5) * 46
+    G.rect(x, y, 58, 42, 0x000000ff)
+    G.draw(z.pics[k], x + 29, y + 21, { ax = 0.5, ay = 0.5, fit = { 58, 42 } })
+  end
+  if T.button("zip_continue", 130, 212, 60, 22, "▶", { center = true }) then
+    require("ui.bottom").app_module("dialog").reboot()
+  end
 end
 
 function M.draw_top()
   G.rect(0, 0, 400, 240, BLUE)
+  if state.zip then return end
   G.text("ENDING", 24, 30, c.white, 2)
   G.text(state.name, 24, 80, c.white, 1, 352)
   G.rect(24, 74, 352, 1, 0xffffff80)
-  if core.now() - state.t0 > 1.5 and math.floor(core.now() * 2) % 2 == 0 then
-    G.text("▶ " .. T.tr({ es = "Toca para continuar", en = "Touch to continue", ja = "タッチしてつづける" }), 24, 210, 0xffffffc0)
-  end
 end
 
 function M.draw_bottom()
+  if state.zip then return draw_zip() end
   G.rect(0, 0, 320, 240, BLUE)
   local n = #state.list
   local cols = 6
@@ -103,9 +158,6 @@ function M.draw_bottom()
       G.frame_rect(x, y, bw, bh, 0xffffff80)
     end
   end
-  local got = 0
-  for _, it in ipairs(state.list) do if state.seen[it.name] or it.name == state.ending then got = got + 1 end end
-  G.text_center(got .. " / " .. n, 160, 200, c.white)
   if core.now() - state.t0 > 1.5 and (I.tap or I.pressed(I.KEY.A)) then
     I.tap = nil
     proceed()

@@ -37,7 +37,7 @@ function M.draw_top(w)
   elseif k == "crash" or k == "ideon" then
     for _, win in ipairs(storm(w)) do
       if win.alive and win.top then
-        T.window(win.x + 40, win.y, 120, 70, w.app)
+        T.window(win.x + 40, win.y, 120, 70, T.app_title(w.app))
       end
     end
   end
@@ -73,7 +73,7 @@ function M.draw_bottom(w)
     for i, win in ipairs(storm(w)) do
       if win.alive and not win.top then
         left = left + 1
-        T.window(win.x, win.y, 120, 70, w.app)
+        T.window(win.x, win.y, 120, 70, T.app_title(w.app))
         local id = "storm" .. i
         if I.focusable(id, win.x, win.y, 120, 70) then T.focus_ring(win.x, win.y, 120, 70) end
         if I.tapped(win.x, win.y, 120, 70) or I.activated(id) then win.alive = false; AudioManager:PlaySeByType("SE_click") end

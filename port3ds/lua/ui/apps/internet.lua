@@ -9,17 +9,29 @@ local M = { icon = "icon_desktop_internet" }
 local scroll = {}
 local selected
 
--- KitsuneView.Jien(): posts the player's own thread replies on the board
-local board = { posts = {} }
+-- KitsuneView.Jien() (Action_Internet2ch*): the player's reply joins the open thread, a random
+-- res number, Kitune_Ending_Charisma_12, SE_status_up and a scroll to the bottom
+local board = {}
+local thread, thread_cache
+local function cmd_title(a)
+  local ok, s = pcall(CommandHelper.GetCommandTitle_3, a, Settings.CurrentLanguage.Value)
+  return ok and s and s ~= NULL and s ~= "" and s or a
+end
 core.views.KitsuneView = {
-  Jien = function(_, text) board.posts[#board.posts + 1] = text; selected = text end,
+  Jien = function()
+    local t = thread(board.forced)
+    local body = NgoEx.KituneFromType("Kitune_Ending_Charisma_12", Settings.CurrentLanguage.Value)
+    t.res[#t.res + 1] = { n = math.random(0, 899) + 11, handle = T.st("Kitsune_Handle", ""), body = body ~= NULL and body or "" }
+    AudioManager:PlaySeByType("SE_status_up")
+    T.scroll_to_bottom(scroll)
+  end,
   -- horror day 3 opens the board with the first / second / third thread
   UpdateContents = function(_, num)
     if num and num >= 0 then
       board.forced = ({ [0] = "Horror_Day3_first", "Horror_Day3_second" })[num] or "Horror_Day3_third"
     end
   end,
-  CleanThread = function() board.posts = {} end,
+  CleanThread = function() thread_cache.key = nil end,
 }
 -- TinderView: shuffled profiles, Nope slides to the next one, Like runs the InternetDeai action,
 -- whose event calls OnChoosed (the match picture)
@@ -81,8 +93,8 @@ local function thread_rank()
   return "Normal1"
 end
 
-local thread_cache = { key = nil }
-local function thread(forced)
+thread_cache = { key = nil }
+function thread(forced)
   local lang = Settings.CurrentLanguage.Value
   local rank = forced or thread_rank()
   local key = rank .. lang .. tostring(EventManager.KituneJien)
@@ -98,7 +110,6 @@ local function thread(forced)
       t.res[#t.res + 1] = { n = item.ResNumber, handle = handle, body = body ~= NULL and body or "" }
     end
   end
-  for _, p in ipairs(board.posts) do t.res[#t.res + 1] = { n = 11, handle = handle, body = p } end
   if EventManager.KituneJien and EventManager.KituneJien ~= "" then
     t.res[#t.res + 1] = { n = 11, handle = handle, body = EventManager.KituneJien }
   end
@@ -106,7 +117,29 @@ local function thread(forced)
   return t
 end
 
-local function draw_thread(x, y, w, h, rank)
+-- KitsuneView's ButtonRoot: the reply InputField (prefilled, InitializeInput) and an ActionButton
+-- (Internet2ch); hidden on the Yami / Ideon boards and the horror days
+local function post_area(win, x, y, w)
+  G.rect(x, y, w, 46, 0xe2e2e2ff)
+  G.rect(x + 4, y, w - 8, 1, 0x878787ff)
+  if not G.draw9("InputFieldBackground", x + 6, y + 4, w - 120, 38, 0.5) then G.rect(x + 6, y + 4, w - 120, 38, c.white) end
+  local pre = NgoEx.KituneFromType("Kitune_Ending_Charisma_12", Settings.CurrentLanguage.Value)
+  G.clip(x + 8, y + 6, w - 124, 34)
+  G.text(pre ~= NULL and pre or "", x + 10, y + 7, 0x323232ff, 1, w - 128)
+  G.unclip()
+  local can = require("ui.bottom").action_status("Internet2ch", win.opened) == "Executable" and not StatusManager.Moved.Value
+  if T.button("act_Internet2ch", x + w - 108, y + 8, 102, 30, cmd_title("Internet2ch"), { center = true, disabled = not can, maxLines = 2 }) then
+    CommandManager:CommandAction_2("Internet2ch")
+  end
+end
+
+local function draw_thread(x, y, w, h, rank, win)
+  if win and board.win ~= win then board.win, thread_cache.key = win, nil end
+  local special = EventManager.nowEnding == "Ending_Yami" or EventManager.nowEnding == "Ending_Ideon" or EventManager.isHorror
+  if win and not special and not rank then
+    post_area(win, x, y + h - 46, w)
+    h = h - 46
+  end
   local t = thread(rank)
   G.rect(x, y, w, h, 0xe2e2e2ff)
   local total = 30
@@ -196,18 +229,15 @@ local function draw_egosa(win, x, y, w, h)
 end
 
 function M.draw(win, x0, y0, w0, h0)
-  local foro = T.tr({ es = "Foro", en = "Forum", ja = "掲示板" })
-  local titles = { Internet = T.st("Window_Internet", "Internet"), Keijiban = foro, KeijibanMini = foro,
-                   EgosaResult = T.st("Window_Egosa", "Egosearch"), Dinder = "Dinder" }
-  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, titles[win.app] or win.app, "icon_desktop_2ch")
+  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, T.app_title(win.app), "icon_desktop_2ch")
   if win.closeable and T.close("net_close") then
     WindowManager:Close(win) return
   end
-  if win.app == "Keijiban" or win.app == "KeijibanMini" then return draw_thread(x, y, w, h) end
+  if win.app == "Keijiban" or win.app == "KeijibanMini" then return draw_thread(x, y, w, h, nil, win) end
   if win.app == "EgosaResult" then return draw_egosa(win, x, y, w, h) end
   if win.app == "Dinder" then return draw_dinder(win, x, y, w, h) end
   G.rect(x, y, w, h, 0xf6f2e8ff)
-  local posts = board.posts
+  local posts = {}
   if win.app == "EgosaResult" and EventManager.KituneJien and EventManager.KituneJien ~= "" then posts = { EventManager.KituneJien } end
   local total = 0
   for _, p in ipairs(posts) do local _, ph = G.measure(p, 1, w - 16); total = total + ph + 10 end

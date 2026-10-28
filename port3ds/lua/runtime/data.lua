@@ -150,7 +150,8 @@ function Resources.Load(typeName, path)
   if key == "statuses" then
     return { StatusList = data.master("statuses") or List.new() }
   end
-  local so = not typeName:match("Master$") and data.scriptable(typeName, key)
+  -- *Master assets are the port's data masters, except ResourceLocalMaster (My Pictures' list)
+  local so = (typeName == "ResourceLocalMaster" or not typeName:match("Master$")) and data.scriptable(typeName, key)
   if so then return so end
   local param = data.master(key)
   if param then

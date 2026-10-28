@@ -18,7 +18,23 @@ local function reboot()
   Settings.isBackToLoad = false
   game.reboot = true
 end
-core.on_load_scene = function(name) reboot() end
+-- SceneManager.LoadScene: the port restarts the Lua runtime. "WindowUITestScene" goes straight
+-- into a game (Start menu's New game, adieuDialog: Settings.saveNumber / nowSaveFile), anything
+-- else back to the title, except after Ending_Completed_Day30 (Settings.adieu), where Boot.cs
+-- loads Data0_Day30 itself. The choice survives the restart in port_boot.txt (ui.main).
+core.on_load_scene = function(name)
+  local go
+  if name == "WindowUITestScene" then
+    go = (Settings.saveNumber or 0) .. "|" .. (Settings.isBackToLoad and Settings.nowSaveFile or "")
+  elseif Settings.adieu then
+    go = "0|Data0_Day30.es3"
+  end
+  if go then sys.write("sdmc:/3ds/needy3ds/save/port_boot.txt", go) end
+  if name ~= "WindowUITestScene" then
+    Settings.saveNumber, Settings.nowSaveFile, Settings.isBackToLoad = 0, "", false
+  end
+  game.reboot = true
+end
 
 local KINDS = {
   -- Dielog (horror day 3): both OK buttons go on with Scenario_horror_day3_day_AfterSine
@@ -70,7 +86,7 @@ function M.draw(w)
   -- text and buttons inside the white area, above the frame's bottom bar (windowbase_active)
   local h = math.max(90, th + 82)
   local x, y = 26, (240 - h) / 2
-  local cx, cy, cw = T.window(x, y, 268, h, w.app == "EndingDialog" and (({ SP = "Fin", EN = "The End", JP = "おしまい" })[lang()] or "Fin") or "Windose")
+  local cx, cy, cw = T.window(x, y, 268, h, T.app_title(w.app, "Windose"))
   G.text(text, cx + 6, cy + 6, c.ink, 1, 252)
   local by = cy + math.max(20, th + 14)
   if cancel then

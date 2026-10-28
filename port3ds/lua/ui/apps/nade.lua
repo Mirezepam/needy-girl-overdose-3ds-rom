@@ -33,8 +33,6 @@ function M.draw()
     G.play("stream_ame_idle", core.now(), -190, -60, { scale = 2.4 })
   end
   G.unclip()
-  G.rect(0, 190, 320, 30, 0xffffffc0)
-  G.text_center(T.tr({ es = "Acaricia la cabeza de Ame con el lápiz", en = "Pat Ame's head with the stylus", ja = "タッチペンであめちゃんをなでなで" }), 160, 198, c.pinkDark)
   local n = amehead.NadeCount.Value
   for i = 0, 2 do
     G.draw("icon_heart", 128 + i * 24, 172, { fit = { 16, 16 }, alpha = (n % 3) > i and 1 or 0.3 })

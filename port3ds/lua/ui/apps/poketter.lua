@@ -17,7 +17,9 @@ local function lang() return Settings.CurrentLanguage.Value end
 local opened_t, opened_win = 0, nil
 local function entry(d)
   local e = cache[d]
-  if e then return e end
+  -- texts are resolved in the current language; a language change rebuilds them
+  if e and e.lang == Settings.CurrentLanguage.Value then return e end
+  local born = e and e.born
   local dr = NEW("TweetDrawable", 1, d)
   e = { text = NgoEx.GetTweetBody(dr, lang()), fav = d.FavNumber or 0, rt = d.RtNumber or 0, omote = d.IsOmote, replies = {},
         day = d.day }
@@ -42,6 +44,7 @@ local function entry(d)
     local _, rh = G.measure(r, 1, W - 72)
     e.h = e.h + math.max(18, rh + 4) + 2
   end
+  e.lang, e.born = Settings.CurrentLanguage.Value, e.born or born
   cache[d] = e
   return e
 end
@@ -115,7 +118,7 @@ end
 
 function M.draw(win, x0, y0, w0, h0)
   if opened_win ~= win then opened_win, opened_t = win, core.now() end
-  local title = win.app == "Uratter" and "Uratter" or "Poketter"
+  local title = T.app_title(win.app, "Poketter")
   local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, title, "icon_taskbar_poketter")
   if win.closeable and T.close("pk_close") then
     WindowManager:Close(win) return

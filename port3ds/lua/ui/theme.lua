@@ -184,8 +184,13 @@ function T.tr(t)
   local cur = Settings and Settings.CurrentLanguage and Settings.CurrentLanguage.Value
   return t[LANG_KEY[cur] or "es"] or t.es
 end
--- the drug insert window (the game has no SystemText for its title)
-T.YAKUJO_TITLE = { es = "Prospecto", en = "Package Insert", ja = "添付文書" }
+-- the original window title of an app (AppTypeToDataAsset AppName, ui/app_titles.lua)
+local APP_TITLES
+function T.app_title(app, fallback)
+  APP_TITLES = APP_TITLES or require("ui.app_titles")
+  local id = APP_TITLES[app]
+  return id and T.st(id, fallback or app) or fallback or app
+end
 -- SystemText by id with a fallback
 function T.st(id, fallback)
   local ok, s = pcall(NgoEx.SystemTextFromType, id, Settings.CurrentLanguage.Value)

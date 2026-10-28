@@ -12,6 +12,20 @@ local title, top, bottom
 function ui.init()
   title = require("ui.title")
   title.init(ui)
+  -- a LoadScene of the game scene before the restart (ui/apps/dialog.lua): start that game
+  local BOOT = "sdmc:/3ds/needy3ds/save/port_boot.txt"
+  local go = sys.exists(BOOT) and sys.read(BOOT)
+  if go then
+    sys.remove(BOOT)
+    local slot, file = go:match("^(%d+)|(.*)$")
+    if slot then
+      local lang = sys.read("sdmc:/3ds/needy3ds/save/port_lang.txt") or "es"
+      lang = lang:match("%a+") or "es"
+      local save = file ~= "" and sys.exists("sdmc:/3ds/needy3ds/save/" .. file) and file or nil
+      spawn(function() ui.start_game({ lang = lang, slot = tonumber(slot), saveFile = save }) end)
+      return
+    end
+  end
   -- development autoplay (sdmc:/3ds/needy3ds/autoplay.txt): start a new game in slot 3 and play
   -- never in a build that carries its data in the CIA (a test copy on a real console): a stray
   -- autoplay.txt on the SD would make the game play by itself

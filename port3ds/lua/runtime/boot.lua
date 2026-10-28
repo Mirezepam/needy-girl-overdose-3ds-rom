@@ -57,6 +57,12 @@ function boot.start_game(opts)
     end
   end
   boot.running = true
+  -- Boot.cs: Settings:Load() when the settings file exists (endings seen, My pictures, volumes,
+  -- stream speed survive a restart); the title screen's choices below still win
+  if SaveRelayer.IsSettingDataExists() then
+    local ok, err = pcall(function() Settings:Load() end)
+    if not ok then LOG("settings load failed:", err) end
+  end
   -- settings decided on the title screen
   Settings.CurrentLanguage.Value = data.LANG_ENUM[data.lang]
   Settings.saveNumber = opts.slot or 1

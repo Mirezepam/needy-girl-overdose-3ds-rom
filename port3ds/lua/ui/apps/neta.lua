@@ -51,7 +51,7 @@ function M.back()
 end
 
 function M.draw(win, x0, y0, w0, h0)
-  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, T.st("Window_Neta", "Ideas para el directo"), "icon_desktop_youtube")
+  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, T.app_title("NetaChoose"), "icon_desktop_youtube")
   if win.closeable and T.close("neta_close") then
     chosen = nil; WindowManager:Close(win) return
   end

@@ -9,14 +9,32 @@ local c = T.c
 local M = { icon = "icon_taskbar_jine" }
 local scroll = { stick_bottom = true }
 local cache = setmetatable({}, { __mode = "k" })
-local stampsOpen = false
+local draft = ""   -- the FreeForm InputField text
 local USER_STAMPS = { "OK", "Saikouka", "Pien", "Waritodoudemoii", "Gomen", "Bujisibou", "Love", "Sorena" }
-local STAMP_SPRITE = {
-  OK = "ok", Saikouka = "saikouka", Pien = "Pien", Waritodoudemoii = "waritodoudemoii", Gomen = "gomen",
-  Bujisibou = "bujisibou", Love = "love", Sorena = "sorena", AmeStamp_ame = "ame", AmeStamp_aseru = "aseru",
-  AmeStamp_imajudori = "imajidorishiteru", AmeStamp_kanzennakyuutai = "kanzennakyuutai",
-  AmeStamp_kawaikunai = "kawaikunai", AmeStamp_kiitenai = "kiitenai", AmeStamp_toketeiru = "toketeiru", AmeStamp_zzz = "zzz",
+-- StampTypeToData: the stamp art per language (LoadStampData.ReadStampContent), generated
+local STAMP_ART = {
+  OK = { JP = "ok_437", EN = "ok_381", SP = "ok_343" },
+  Saikouka = { JP = "saikouka_451", EN = "saikouka_385", SP = "saikouka_325" },
+  Pien = { JP = "pien_375", EN = "pien_366", SP = "pien_484" },
+  Waritodoudemoii = { JP = "waritodoudemoii_444", EN = "waritodoudemoii", SP = "waritodoudemoii_416" },
+  Gomen = { JP = "gomen_402", EN = "gomen_392", SP = "gomen_452" },
+  Bujisibou = { JP = "bujishibou_389", EN = "bujishibou_456", SP = "bujisyuuryou_438" },
+  Love = { JP = "love", EN = "love_398", SP = "love_348" },
+  Sorena = { JP = "sorena", EN = "sorena_418", SP = "sorena_498" },
+  AmeStamp_ame = { JP = "amechan_421", EN = "amechan_421", SP = "amechan_409" },
+  AmeStamp_aseru = { JP = "aseru_415", EN = "aseru_415", SP = "aseru_466" },
+  AmeStamp_imajudori = { JP = "imajidorishiteru_488", EN = "imajidorishiteru_353", SP = "imajidorishiteru_412" },
+  AmeStamp_kanzennakyuutai = { JP = "kanzennakyuutai_426", EN = "kanzennakyuutai_346", SP = "kanzennakyuutai_344" },
+  AmeStamp_kawaikunai = { JP = "kawaikunai", EN = "kawaikunai_434", SP = "kawaikunai_369" },
+  AmeStamp_toketeiru = { JP = "toketeiru", EN = "toketeiru", SP = "toketeiru_419" },
+  AmeStamp_zzz = { JP = "zzz_430", EN = "zzz_430", SP = "zzz" },
+  AmeStamp_kiitenai = { JP = "kiitenai_515", EN = "kiitenai_479", SP = "kiitenai_454" },
 }
+-- LoadStampData.ReadStampContent(type, CurrentLanguage): each language has its own art
+local function stamp_sprite(st)
+  local a = STAMP_ART[st]
+  return a and (a[Settings.CurrentLanguage.Value] or a.EN) or st
+end
 local BW = 220   -- bubble wrap width
 
 local function lang() return Settings.CurrentLanguage.Value end
@@ -24,7 +42,9 @@ local function lang() return Settings.CurrentLanguage.Value end
 local opened_t, opened_win = 0, nil
 local function entry(d)
   local e = cache[d]
-  if e then return e end
+  -- texts are resolved in the current language; a language change rebuilds them
+  if e and e.lang == Settings.CurrentLanguage.Value then return e end
+  local born = e and e.born
   e = { user = d.user }
   if d.user == "separator" then
     e.text = NgoEx.DayText(d.day, lang())
@@ -49,6 +69,7 @@ local function entry(d)
   e.h = h + 4
   -- JineCell2D fades new messages in; the history already there when the window opens does not
   if core.now() - opened_t > 0.4 then e.born = core.now() end
+  e.lang, e.born = Settings.CurrentLanguage.Value, e.born or born
   cache[d] = e
   return e
 end
@@ -70,7 +91,7 @@ local function draw_entry(e, x, y, w)
   local ame = e.user ~= "pi"
   if e.stamp then
     local sx = ame and x + 30 or x + w - 62
-    if not G.draw(STAMP_SPRITE[e.stamp] or e.stamp, sx, y, { fit = { 52, 52 } }) then
+    if not G.draw(stamp_sprite(e.stamp), sx, y, { fit = { 52, 52 } }) then
       G.rect(sx, y, 52, 52, c.pink); G.text(e.stamp, sx + 2, y + 20, c.ink, 1, 48)
     end
     if ame then G.draw("icon_jine_ame", x + 1, y, { scale = 0.5 }) end
@@ -95,17 +116,11 @@ end
 local function send_stamp(st)
   local d = NEW("JineData", 5, "pi", "None", "Stamp", st, "")
   spawn(function() JineManager:AddJineHistory_1(d) end)
-  stampsOpen = false
-end
-
-function M.back()
-  if stampsOpen then stampsOpen = false return true end
-  return false
 end
 
 function M.draw(win, x0, y0, w0, h0)
   if opened_win ~= win then opened_win, opened_t = win, core.now() end
-  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, "JINE", "icon_taskbar_jine")
+  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, T.app_title("Jine", "JINE"), "icon_taskbar_jine")
   if win.closeable and T.close("jine_close") then
     WindowManager:Close(win) return
   end
@@ -118,7 +133,7 @@ function M.draw(win, x0, y0, w0, h0)
   local panelH = 0
   if nOpt > 0 then panelH = nOpt * 30 + 4
   elseif status == "FreeForm" then panelH = 30
-  elseif status == "Stamp" or status == "ChooseAction" then panelH = stampsOpen and 58 or 22 end
+  elseif status == "Stamp" or status == "ChooseAction" then panelH = 58 end
   panelH = math.min(panelH, h - 30)
   local lh = h - panelH
   -- history
@@ -175,19 +190,28 @@ function M.draw(win, x0, y0, w0, h0)
       end
     end
   elseif status == "FreeForm" then
-    if T.button("jfree", x + 4, py + 3, w - 8, 24, "✎ Escribir…", { fill = c.pi }) then
-      core.keyboard("JINE", 60, function(s) if s and s ~= "" then JineManager:EndMessage(s) end end)
+    -- FreeForm: the TMP InputField (tap types with the system keyboard) and the send Button
+    local fx, fw = x + 4, w - 52
+    if not G.draw9("InputFieldBackground", fx, py + 3, fw, 24, 0.5) then G.rect(fx, py + 3, fw, 24, c.white) end
+    G.text(draft, fx + 6, py + 8, 0x323232ff, 1, fw - 12, 1)
+    if I.focusable("jfield", fx, py + 3, fw, 24) then T.focus_ring(fx, py + 3, fw, 24) end
+    if I.tapped(fx, py + 3, fw, 24) or I.activated("jfield") then
+      core.keyboard("JINE", 60, function(s) if s then draft = s end end)
+    end
+    if T.button("jfree", x + w - 44, py + 3, 40, 24, "", {}) and draft ~= "" then
+      local msg = draft
+      draft = ""
+      JineManager:EndMessage(msg)
     end
   elseif status == "Stamp" or status == "ChooseAction" then
-    if stampsOpen then
+    -- the Stamp panel is shown as soon as JINE waits for a stamp (JineView2D.showStamp)
+    do
       for i, st in ipairs(USER_STAMPS) do
         local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
         local bx, by = x + 4 + col * 76, py + 2 + row * 28
         if T.button("stamp" .. i, bx, by, 72, 26, "", { flat = true }) then send_stamp(st) end
-        if not G.draw(STAMP_SPRITE[st], bx + 24, by + 1, { fit = { 24, 24 } }) then G.text(st, bx + 4, by + 8, c.ink, 1, 64, 1) end
+        if not G.draw(stamp_sprite(st), bx + 24, by + 1, { fit = { 24, 24 } }) then G.text(st, bx + 4, by + 8, c.ink, 1, 64, 1) end
       end
-    elseif T.button("jstamps", x + 4, py + 2, w - 8, 18, "☺ " .. T.tr({ es = "Stickers", en = "Stickers", ja = "スタンプ" }), { center = true, flat = true }) then
-      stampsOpen = true
     end
   end
 end

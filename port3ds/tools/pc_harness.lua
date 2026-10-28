@@ -363,10 +363,10 @@ local ev = {}
 local UIBOT = os.getenv("NGO_UIBOT") == "1"
 local ub = { sig = nil, since = 0, stucks = 0, taps = {}, last = nil }
 local UB_PRIORITY = { "^jopt", "^dlg_ok", "^chipget_ok", "^meta_", "^login_go", "^login_field", "^desk_login", "^neta_start",
-  "^ura_", "^wrist_go", "^ideon_start", "^desk_liveend", "^desk_himitu", "^dinder_like", "^cm%d", "^jfree", "^notif",
+  "^ura_", "^wrist_go", "^ideon_start", "^desk_liveend", "^desk_himitu", "^dinder_like", "^cm%d", "^jfield", "^jfree", "^notif",
   "^act_", "^drug_", "^chip", "^stamp", "^jstamps", "^desk_", "^tw%d", "^qs", "^tb_", "close" }
 local UB_IDLE = { "^jopt", "^dlg_ok", "^chipget_ok", "^meta_", "^login_go", "^desk_login", "^neta_start", "^chip",
-  "^ura_", "^wrist_go", "^ideon_start", "^desk_liveend", "^desk_himitu", "^dinder_like", "^jfree", "^notif", "^act_", "^drug_", "^tb_Drug",
+  "^ura_", "^wrist_go", "^ideon_start", "^desk_liveend", "^desk_himitu", "^dinder_like", "^jfield", "^jfree", "^notif", "^act_", "^drug_", "^tb_Drug",
   "^desk_", "close" }
 local UB_AVOID = { start = true, skip = true, lang = true, load = true, new = true, day = true, lv_skip = true, lv_speed = true,
   menu_close = true, drug_back = true, jine_latest = true, dinder_nope = true }

@@ -87,16 +87,17 @@ local function tweets(st, x, y, w, h)
   end
   if st.blocked then
     G.rect(x + 6, y + 4, w - 12, h - 8, 0x000000a0)
-    local msg = T.tr({ es = "Te han bloqueado.", en = "You have been blocked.", ja = "ブロックされています" })
-    T.panel(x + 30, y + h / 2 - 22, w - 60, 44, c.white)
-    G.text_center(msg, x + w / 2, y + h / 2 - 14, c.red, 1, w - 70)
+    -- the blocked cover: Ending_Normal_System002 and Poketter_Blocked_Description in ink
+    T.panel(x + 30, y + h / 2 - 26, w - 60, 52, c.white)
+    G.text_center(T.st("Ending_Normal_System002", ""), x + w / 2, y + h / 2 - 20, 0x4d22cfff, 1, w - 70)
+    G.text_center((T.st("Poketter_Blocked_Description", ""):gsub("^%s+", "")), x + w / 2, y + h / 2 + 2, 0x4d22cfff, 1, w - 70)
   end
 end
 
 function M.draw(win, x0, y0, w0, h0)
   local st = state[win]
   if not st then st = { phase = "followers", t0 = core.now() }; state[win] = st end
-  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, "Uratter", "icon_taskbar_poketter")
+  local x, y, w, h = T.window(x0 + 2, y0 + 2, w0 - 4, h0 - 2, T.app_title("Uratter"), "icon_taskbar_poketter")
   background(x, y, w, h)
   if st.phase == "followers" then followers(st, x, y, w, h) else tweets(st, x, y, w, h) end
 end

@@ -49,14 +49,14 @@ local function content(win)
   -- windows answer unknown fields with NULL (for the game's scripts): read our own fields raw
   local text = rawget(win, "text")
   if text then return rawget(win, "title") or win.app, text end
-  if win.app == "Yakujo" then return T.tr(T.YAKUJO_TITLE), yakujo_text() end
+  if win.app == "Yakujo" then return T.app_title("Pills"), yakujo_text() end
   local d = DOCS[win.app]
   if d then
     local body = {}
     for _, id in ipairs(d[2]) do body[#body + 1] = st(id) or "" end
-    return st(d[1]) or win.app, table.concat(body, "\n\n")
+    return T.app_title(win.app, st(d[1]) or win.app), table.concat(body, "\n\n")
   end
-  return st(win.app) or win.app, st(win.app .. "_Body") or ""
+  return T.app_title(win.app, st(win.app) or win.app), st(win.app .. "_Body") or ""
 end
 
 function M.draw(win, x0, y0, w0, h0)

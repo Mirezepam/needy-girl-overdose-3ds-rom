@@ -79,6 +79,12 @@ C.__getters.PlayingBgm = function(self)
   local cur = self.currentBgm
   return { Value = cur and { Sound = { Id = cur }, Source = { isPlaying = true } } or nil }
 end
+-- the mixer starts at the saved volumes (Settings.BgmVolume / SeVolume, 0.6 / 0.8 by default)
+function C:Start()
+  self.bgmVolume = Settings.BgmVolume or 0.6
+  self.seVolume = Settings.SeVolume or 0.8
+  sys.bgm_volume(self.bgmVolume)
+end
 function C:ChangeMasterVolume(v) self.bgmVolume = v; sys.bgm_volume(v) end
 function C:ChangeSeVolume(v) self.seVolume = v end
 function C:ChangeVolume(cat, v) if tostring(cat):find("BGM") then self:ChangeMasterVolume(v) else self.seVolume = v end end

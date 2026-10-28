@@ -135,7 +135,8 @@ def pow2(n):
 
 # ------------------------------------------------------------------ sprites -> atlases
 
-SUFFIX_RE = re.compile(r"_-?\d{6,}$")
+# Unity duplicate suffixes ("_-6290023870359517497"); photo names keep their time (IMG_20190505_182017)
+SUFFIX_RE = re.compile(r"(?<!IMG_\d{8})_-?\d{6,}$")
 SEQ_RE = re.compile(r"^(.*?)_?(\d{2,4})$")
 
 
