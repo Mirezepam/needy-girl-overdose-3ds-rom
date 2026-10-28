@@ -385,6 +385,13 @@ local function bot()
       print("EVENT_HANG", EVT, tostring(EventManager.nowEvent or EventManager.executingEvent)) game.quit = true return
     end
   end
+  -- injected code can define WATCH() -> string: printed (with the frame) whenever it changes
+  local watch = rawget(_G, "WATCH")
+  if watch and frame % 120 == 0 then
+    local ok, w = pcall(watch)
+    w = tostring(w)
+    if w ~= rawget(_G, "WATCH_LAST") then rawset(_G, "WATCH_LAST", w); print("  [watch]", frame, w) end
+  end
   if INJ and INJ ~= "" and started and not injected and frame >= 600 and StatusManager.statuses
      and StatusManager:GetStatus("DayIndex") >= 2 and not EventManager.isEventing and not StatusManager.Moved.Value
      and EventManager.eventQueue.Count == 0 and #NotificationManager.items == 0 and frame % 60 == 30 then

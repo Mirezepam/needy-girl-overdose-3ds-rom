@@ -54,9 +54,9 @@ local function draw_dinder(win, x, y, w, h)
     AudioManager:PlaySeByType("SE_kuraiSelect")
     dinder.slide = core.now()
   end
-  local st = CommandManager.commandStatus and CommandManager.commandStatus.Value
-  local s0 = st and st ~= NULL and st:__idx("InternetDeai")
-  local can = (s0 == nil or s0 == "Executable") and not StatusManager.Moved.Value
+  -- the Like button is an ActionButton (InternetDeai): Executable unless an action started while
+  -- the window was open
+  local can = require("ui.bottom").action_status("InternetDeai", win.opened) == "Executable" and not StatusManager.Moved.Value
   if T.button("dinder_like", x + 32 + (w - 48) / 2, y + h - 34, (w - 48) / 2, 26, T.st("Dinder_Like", "Like"), { center = true, disabled = busy or not can }) then
     CommandManager:CommandAction_2("InternetDeai")
   end

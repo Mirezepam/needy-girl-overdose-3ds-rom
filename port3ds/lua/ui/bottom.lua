@@ -103,13 +103,35 @@ local function focus_hover(id, a)
 end
 local goForced = false   -- menu opened by the GoOut window
 
-local function action_status(a)
-  local st = CommandManager.commandStatus and CommandManager.commandStatus.Value
-  local s = st and st ~= NULL and st:__idx(a)
+-- ActionButton: each button subscribes to CommandManager.commandStatus and then to DayPart, and
+-- the DayPart handler sets it Executable. Both fire on subscribe, so a window that opens and every
+-- day part change show the commands Executable; only a commandStatus change while the window is
+-- open (disableAllCommands when an action starts) turns them Yada. The game never restores
+-- commandStatus after the first action, so it can't be read directly (that blocked Sleep & co.).
+local cmdChanged, partChanged = -1, -1
+local watching = false
+local function watch_status()
+  if watching or not CommandManager.commandStatus or not StatusManager.statuses then return end
+  watching = true
+  CommandManager.commandStatus:Subscribe(function() cmdChanged = core.now() end)
+  StatusManager:GetStatusObservable("DayPart"):Subscribe(function() partChanged = core.now() end)
+  partChanged = core.now()
+end
+local menuOpened = 0   -- when the action window being drawn opened
+
+-- status of an ActionButton in a window opened at `opened`
+function M.action_status(a, opened)
+  watch_status()
+  local s = "Executable"
+  if cmdChanged > math.max(opened or 0, partChanged) then
+    local st = CommandManager.commandStatus.Value
+    s = st and st ~= NULL and st:__idx(a) or "Executable"
+  end
   if a == "SleepToTwilight" and StatusManager:GetStatus("DayPart") > 0 then return "Invisible" end
   if a == "SleepToNight" and StatusManager:GetStatus("DayPart") > 1 then return "Invisible" end
-  return s or "Executable"
+  return s
 end
+local function action_status(a) return M.action_status(a, menuOpened) end
 
 local function run_action(a)
   if StatusManager.Moved.Value then return end
@@ -160,7 +182,7 @@ MENUS.internet = { "InternetPoketter", "InternetPoketterEgosa", "InternetYoutube
 
 local menuScroll = {}
 -- used by the PC test harness to visit every screen
-function M.debug_open_menu(name) menu = name end
+function M.debug_open_menu(name) menu = name; menuOpened = core.now() end
 function M.debug_pause(v) paused = v end
 -- open menu + the entry under the stylus / D-pad focus (the top screen shows the outing map)
 function M.current_menu() return menu, M.menu_hover end
@@ -335,9 +357,10 @@ end
 -- windows an event opens (Internet, Pills...) show the same category window as the desktop
 -- shortcut; it closes with its x or once an action runs
 function M.draw_category(cat, win)
-  local prev = menu
-  menu = cat
+  local prev, prevOpened = menu, menuOpened
+  menu, menuOpened = cat, win and win.opened or menuOpened
   draw_menu(true)
+  menuOpened = prevOpened
   local closed = menu == nil
   menu = prev ~= cat and prev or nil
   if closed and win then WindowManager:Close(win) end
@@ -444,7 +467,7 @@ local function draw_desktop()
       elseif not enabled then -- blocksRaycasts = false: nothing happens
       elseif d.open then WindowManager:NewWindow_2(d.open)
       elseif d.action then run_action(d.action)
-      else menu = d.menu; menuScroll.y = 0 end
+      else menu = d.menu; menuScroll.y = 0; menuOpened = core.now() end
     end
     ::next_icon::
   end
