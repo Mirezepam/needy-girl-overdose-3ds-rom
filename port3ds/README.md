@@ -26,9 +26,10 @@ desktop. Texts are available in Spanish, English and Japanese.
 1. You need a 3DS with [homebrew](https://3ds.hacks.guide/) (Homebrew Launcher) and the dumped DSP
    firmware (`sdmc:/3ds/dspfirm.cdc`, created with *DSP1*). Without it the game runs silent and the
    title screen shows a warning.
-2. Copy `needy3ds.3dsx` to `sdmc:/3ds/`.
+2. Download [`needy3ds.3dsx` or `needy3ds.cia`](https://github.com/Mirezepam/needy-girl-overdose-3ds/releases/latest). Copy the `.3dsx` to `sdmc:/3ds/`, or
+   install the `.cia` with FBI to have it on the HOME Menu.
 3. Copy the whole `build_data/needy3ds/` folder to `sdmc:/3ds/needy3ds/` (about 850 MB).
-4. Launch *NEEDY GIRL OVERDOSE 3DS* from the Homebrew Launcher.
+4. Launch *NEEDY GIRL OVERDOSE 3DS* from the Homebrew Launcher or the HOME Menu.
 
 On the Azahar emulator: `File → Load File…` → `needy3ds.3dsx`, with the data folder in
 `%APPDATA%\Azahar\sdmc\3ds\needy3ds\`. With HLE audio emulation any file named
@@ -46,12 +47,11 @@ On the Azahar emulator: `File → Load File…` → `needy3ds.3dsx`, with the da
 | JINE / Poketter | Icons | **Y / X** |
 | Start menu (My Pictures, Control Panel, Restart, Shut down) | *Start* button on the taskbar | **START** |
 | Task Manager (stats and graphs) | Taskbar icon | — |
-| Show a command's description | Touch and hold | — |
+| Show a command's description | Touch and hold | D-pad onto it |
 | Stream: pick a super chat | Tap the coloured comment | D-pad + **A** |
 | Stream: delete a comment | Tap it or swipe left | D-pad + **A** |
 | Stream: pause | Keep your finger on the chat | — |
 | Stream: speed / skip | *Stream pace* / *▶SKIP* buttons | **R**, **L** / **SELECT** |
-| Stream: next line | — | **A** |
 | Pet Ame | Rub her head on the bottom screen | **A** |
 | Performance overlay | — | **L + R + SELECT** |
 

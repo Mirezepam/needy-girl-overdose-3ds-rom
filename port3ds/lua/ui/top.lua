@@ -383,9 +383,12 @@ local function draw_scene(w)
   elseif k == "ideon" then
     return require("ui.bottom").app_module("ideon").draw_top()
   elseif k == "pictures" then
+    -- the picture viewer covers the webcam only once a picture is open
     local img = rawget(w, "image") or (core.views.ImageViewer and core.views.ImageViewer.current)
-    G.rect(26, 14, 348, 226, 0x000000ff)
-    if img then G.draw(img, 200, 127, { ax = 0.5, ay = 0.5, fit = { 348, 226 } }) end
+    if img then
+      G.rect(26, 14, 348, 226, 0x000000ff)
+      G.draw(img, 200, 127, { ax = 0.5, ay = 0.5, fit = { 348, 226 } })
+    end
   end
   return false
 end
