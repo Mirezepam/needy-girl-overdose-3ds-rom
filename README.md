@@ -17,14 +17,22 @@ controls, installation and build instructions.
 
 ## Download
 
-| File | For | How to use it |
-|---|---|---|
-| [`needy3ds.3dsx`](https://github.com/Mirezepam/needy-girl-overdose-3ds/releases/latest) | Homebrew Launcher | Copy it to `sdmc:/3ds/` and open it from the Homebrew Launcher |
-| [`needy3ds.cia`](https://github.com/Mirezepam/needy-girl-overdose-3ds/releases/latest) | HOME Menu | Install it with FBI (or any CIA installer); it appears on the HOME Menu |
+**Test builds with the game data inside** ([v1.0.15](https://github.com/Mirezepam/needy-girl-overdose-3ds/releases/tag/v1.0.15)) — private repository,
+for personal testing only. Nothing to copy to the SD card: the data travels inside each file.
 
-Both need the game data folder in `sdmc:/3ds/needy3ds/`, generated from **your own Steam copy** of
-the game (see [Building the data](port3ds/README.md#building-the-data-and-the-executable-pc)).
-The downloads contain only the engine — no game data is distributed.
+| File | Version | How to use it |
+|---|---|---|
+| [`needy3ds_full.cia`](https://github.com/Mirezepam/needy-girl-overdose-3ds/releases/download/v1.0.15/needy3ds_full.cia) | Standard | Install with FBI → HOME Menu |
+| [`needy3ds_full.3dsx`](https://github.com/Mirezepam/needy-girl-overdose-3ds/releases/download/v1.0.15/needy3ds_full.3dsx) | Standard | Copy to `sdmc:/3ds/` → Homebrew Launcher |
+| [`needy3ds_3d.cia`](https://github.com/Mirezepam/needy-girl-overdose-3ds/releases/download/v1.0.15/needy3ds_3d.cia) | Stereoscopic 3D | Install with FBI → HOME Menu ("Ame-chan 3D") |
+| [`needy3ds_3d.3dsx`](https://github.com/Mirezepam/needy-girl-overdose-3ds/releases/download/v1.0.15/needy3ds_3d.3dsx) | Stereoscopic 3D | Copy to `sdmc:/3ds/` → Homebrew Launcher |
+
+**Engine only** ([v1.0.14](https://github.com/Mirezepam/needy-girl-overdose-3ds/releases/tag/v1.0.14)): `needy3ds.3dsx` / `needy3ds.cia`, which read the
+data folder from `sdmc:/3ds/needy3ds/`, generated from your own Steam copy of the game (see
+[Building the data](port3ds/README.md#building-the-data-and-the-executable-pc)).
+
+Saves, settings and the log always go to `sdmc:/3ds/needy3ds/`. Sound needs the DSP firmware dump
+(`sdmc:/3ds/dspfirm.cdc`, made with DSP1).
 
 ## Screenshots
 
