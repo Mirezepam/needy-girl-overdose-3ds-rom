@@ -35,7 +35,13 @@ function M.draw(win, x0, y0, w0, h0)
     core.keyboard("password", 20, function(s) if s then state.text = s end end)
   end
   local ok = typed == PASS or typed == "angelikawaii2"
-  if T.button("login_go", x + w / 2 - 50, fy + 30, 100, 20, "login", { center = true, disabled = not ok }) then
+  -- one login at a time: a second tap while the event still waits in the queue (behind another
+  -- event) ran the first night twice; if the queue is cleared before it runs, login works again
+  local pending = false
+  for _, ev in EACH(EventManager.eventQueue) do
+    if IS(ev, "Scenario_loop1_day0_night_AfterLogin") then pending = true end
+  end
+  if T.button("login_go", x + w / 2 - 50, fy + 30, 100, 20, "login", { center = true, disabled = not ok or pending }) then
     state.text, state.t0 = "", nil
     EventManager:AddEvent_1("Scenario_loop1_day0_night_AfterLogin")
   end

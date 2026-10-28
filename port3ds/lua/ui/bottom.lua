@@ -625,6 +625,7 @@ local function draw_taskbar()
 end
 
 -- ------------------------------------------------------------------ frame
+local dayShown, dayBlock = nil, 0
 function M.draw()
   if not StatusManager.statuses then G.rect(0, 0, 320, 240, 0x000000ff) return end
   local blue = app_module("endingblue")
@@ -632,6 +633,12 @@ function M.draw()
   local meta = app_module("metacover")
   if meta.active() then meta.draw_bottom() return end
 
+  -- DayPassing2D: its raycast blocker covers the screen while the day-change animation plays (game
+  -- start and every new day: 0.4 + 0.4 + 0.9 + 0.2 + 0.4 s). The port's DOTween finishes that
+  -- sequence at once, so the blocker is timed here; taps in that window reach nothing.
+  local day = StatusManager:GetStatus("DayIndex")
+  if day ~= dayShown then dayShown, dayBlock = day, core.now() + 2.3 end
+  if core.now() < dayBlock then I.tap, I.long, I.swipe = nil, nil, nil end
   -- while the start menu, the new-idea cover or a modal dialog is open it gets the tap; the UI
   -- below only draws (a dialog is drawn after the desktop, whose icons took its taps)
   local chipget = app_module("chipget")

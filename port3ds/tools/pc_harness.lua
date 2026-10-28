@@ -190,7 +190,7 @@ sys = {
   remove = function(p) return os.remove(map(p)) end,
   time = function() return now_ms end,
   mem = function() return 30000000, TEXBYTES or 0, collectgarbage("count") * 1024 end,
-  keyboard = function() return "hola" end,
+  keyboard = function(hint) return hint == "password" and "angelkawaii2" or "hola" end,
   is_new3ds = function() return false end,
 }
 
@@ -216,9 +216,14 @@ LOG = function(...)
 end
 
 game.init()
-local K = { A = 1, TOUCH = 1 << 20 }
-local pending_tap
+local K = { A = 1 << 0, B = 1 << 1, SELECT = 1 << 2, START = 1 << 3, DRIGHT = 1 << 4, DLEFT = 1 << 5,
+  DUP = 1 << 6, DDOWN = 1 << 7, R = 1 << 8, L = 1 << 9, X = 1 << 10, Y = 1 << 11, TOUCH = 1 << 20,
+  CRIGHT = 1 << 28, CLEFT = 1 << 29, CUP = 1 << 30, CDOWN = 1 << 31 }
+local pending_tap, pending_key
 local function tap(x, y) pending_tap = { x = x, y = y, phase = 0 } end
+-- a stylus drag from (x, y) to (x2, y2) over n frames, and a button press (one frame down)
+local function drag(x, y, x2, y2, n) pending_tap = { x = x, y = y, x0 = x, y0 = y, x2 = x2, y2 = y2, n = n, phase = 0, step = 0 } end
+local function press(k) pending_key = { k = k, phase = 0 } end
 
 local frame, lastHist, lastDay, lastPart = 0, 0, -1, -1
 local started = false
@@ -364,7 +369,7 @@ local UIBOT = os.getenv("NGO_UIBOT") == "1"
 local ub = { sig = nil, since = 0, stucks = 0, taps = {}, last = nil }
 local UB_PRIORITY = { "^jopt", "^dlg_ok", "^chipget_ok", "^meta_", "^login_go", "^login_field", "^desk_login", "^neta_start",
   "^ura_", "^wrist_go", "^ideon_start", "^desk_liveend", "^desk_himitu", "^dinder_like", "^cm%d", "^jfield", "^jfree", "^notif",
-  "^act_", "^drug_", "^chip", "^stamp", "^jstamps", "^desk_", "^tw%d", "^qs", "^tb_", "close" }
+  "^act_", "^drug_", "^chip", "^desk_", "close", "^stamp", "^tw%d", "^qs", "^tb_" }
 local UB_IDLE = { "^jopt", "^dlg_ok", "^chipget_ok", "^meta_", "^login_go", "^desk_login", "^neta_start", "^chip",
   "^ura_", "^wrist_go", "^ideon_start", "^desk_liveend", "^desk_himitu", "^dinder_like", "^jfield", "^jfree", "^notif", "^act_", "^drug_", "^tb_Drug",
   "^desk_", "close" }
@@ -373,12 +378,47 @@ local UB_AVOID = { start = true, skip = true, lang = true, load = true, new = tr
 -- NGO_UIBOT_SKIP="act_OdekakeZikka,..." keeps the bot away from early endings to cover more days
 local UB_SKIP = {}
 for id in (os.getenv("NGO_UIBOT_SKIP") or ""):gmatch("[^,]+") do UB_SKIP[id] = true end
+-- NGO_MONKEY=1 (with NGO_UIBOT): random taps anywhere, drags, long presses and every button,
+-- mixed with the touch bot, to shake out errors from input nobody plans for
+local MONKEY = os.getenv("NGO_MONKEY") == "1"
+local MKEYS = { "A", "B", "X", "Y", "L", "R", "START", "SELECT", "DUP", "DDOWN", "DLEFT", "DRIGHT", "CUP", "CDOWN" }
+local monkey_n = 0
+local function monkey()
+  for _, w in EACH(WindowManager.windows) do
+    if w.app == "ShutDownDialog" or w.app == "RebootDialog" then WindowManager:Close(w) return true end
+  end
+  if pending_tap or pending_key or frame % 11 ~= 0 then return false end
+  monkey_n = monkey_n + 1
+  local r = math.random()
+  if r < 0.45 then tap(math.random(0, 319), math.random(0, 239))
+  elseif r < 0.55 then drag(math.random(0, 319), math.random(0, 239), math.random(0, 319), math.random(0, 239), math.random(3, 25))
+  elseif r < 0.6 then local x, y = math.random(0, 319), math.random(0, 239); drag(x, y, x, y, 40)
+  else press(K[MKEYS[math.random(#MKEYS)]]) end
+  if os.getenv("NGO_UIBOT_V") then
+    local p = pending_tap
+    print("  [monkey]", p and string.format("touch %d,%d%s", p.x, p.y, p.n and (" drag " .. p.n) or "") or ("key " .. tostring(pending_key and pending_key.k)))
+  end
+  return true
+end
+
 local function uibot()
   for _, w in EACH(WindowManager.windows) do
     if w.app == "EndingDialog" then print("== ENDING DIALOG:", EventManager.nowEnding); game.quit = true return end
   end
-  if require("ui.bottom").app_module("endingblue").active() then
+  local blue = require("ui.bottom").app_module("endingblue")
+  if blue.active() and not os.getenv("NGO_UIBOT_NOEND") then
     print("== ENDING DIALOG:", EventManager.nowEnding, "(blue screen)"); game.quit = true return
+  end
+  -- NGO_UIBOT_NOEND: go on through the blue screen (tap anywhere), ChooseZip and the restart
+  if blue.active() then
+    if frame % 30 == 0 and not pending_tap then
+      local zips = {}
+      for _, f in ipairs(core.input.last_focusables or {}) do if f.id:match("^zip") then zips[#zips + 1] = f end end
+      local f = zips[math.random(math.max(1, #zips))]
+      if f then tap(f.x + f.w / 2, f.y + f.h / 2) else tap(160, 120) end
+      print("  [ui] blue", f and f.id or "tap")
+    end
+    return
   end
   -- the head-pat minigame is a stylus stroke, not a tap
   local nade = require("ui.bottom").app_module("nade")
@@ -386,6 +426,7 @@ local function uibot()
     if frame % 20 == 0 then nade.amehead.NadeCount.Value = nade.amehead.NadeCount.Value + 1 end
     return
   end
+  if MONKEY and math.random() < 0.5 and monkey() then return end
   local list = core.input.last_focusables or {}
   -- watchdog: day, part and event state must keep changing
   local sig = StatusManager:GetStatus("DayIndex") .. "/" .. StatusManager:GetStatus("DayPart") .. "/" .. tostring(EventManager.isEventing)
@@ -408,7 +449,7 @@ local function uibot()
   for _, f in ipairs(list) do
     local cx, cy = f.x + f.w / 2, f.y + f.h / 2
     -- a tap that keeps doing nothing (a used stream topic...) is dropped until the state moves
-    if (ub.tried[f.id] or 0) < 6 and not UB_AVOID[f.id] and not (UB_SKIP and UB_SKIP[f.id]) and not f.id:match("^p_") and not f.id:match("^cp") and cx >= 0 and cx < 320 and cy >= 0 and cy < 240 then
+    if (ub.tried[f.id] or 0) < 40 and not UB_AVOID[f.id] and not (UB_SKIP and UB_SKIP[f.id]) and not f.id:match("^p_") and not f.id:match("^cp") and cx >= 0 and cx < 320 and cy >= 0 and cy < 240 then
       cands[#cands + 1] = f
     end
   end
@@ -424,6 +465,20 @@ local function uibot()
         if os.getenv("NGO_UIBOT_V") then print("  [ui] tap", f.id, sig) end
         return
       end
+    end
+  end
+  -- NGO_UIBOT_PREFER="cp_lang2,cp_ok": exact ids tapped first, in that order (feature tests)
+  for id in (os.getenv("NGO_UIBOT_PREFER") or ""):gmatch("[^,]+") do
+    if not ub.prefDone then ub.prefDone = {} end
+    if not ub.prefDone[id] then
+      for _, f in ipairs(list) do
+        if f.id == id then
+          ub.prefDone[id] = true
+          tap(f.x + f.w / 2, f.y + f.h / 2); print("  [ui] prefer", id)
+          return
+        end
+      end
+      break
     end
   end
   for _, pat in ipairs(idle and UB_IDLE or UB_PRIORITY) do
@@ -726,9 +781,20 @@ local ok, err = xpcall(function()
     now_ms = now_ms + 16
     local down, held, up, tx, ty = 0, 0, 0, 0, 0
     if pending_tap then
-      tx, ty = pending_tap.x, pending_tap.y
-      if pending_tap.phase == 0 then down = K.TOUCH; held = K.TOUCH; pending_tap.phase = 1
+      local pt = pending_tap
+      tx, ty = math.floor(pt.x), math.floor(pt.y)
+      if pt.phase == 0 then down = K.TOUCH; held = K.TOUCH; pt.phase = 1
+      elseif pt.n and pt.step < pt.n then
+        pt.step = pt.step + 1
+        pt.x = pt.x0 + (pt.x2 - pt.x0) * pt.step / pt.n
+        pt.y = pt.y0 + (pt.y2 - pt.y0) * pt.step / pt.n
+        tx, ty = math.floor(pt.x), math.floor(pt.y)
+        held = K.TOUCH
       else up = K.TOUCH; pending_tap = nil end
+    end
+    if pending_key then
+      if pending_key.phase == 0 then down = down | pending_key.k; held = held | pending_key.k; pending_key.phase = 1
+      else up = up | pending_key.k; pending_key = nil end
     end
     bot()
     if started and frame % 5000 == 0 and StatusManager.statuses then
