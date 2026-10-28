@@ -1,6 +1,6 @@
 # NEEDY GIRL OVERDOSE — 3DS fan port
 
-An unofficial Nintendo 3DS / 2DS port of NEEDY GIRL OVERDOSE, made as an academic project.
+An unofficial Nintendo 3DS / 2DS port of NEEDY GIRL OVERDOSE,.
 It runs the original game logic (translated from C# to Lua) on a small C engine built with
 citro2d, and spreads the Windose desktop across the two screens: Ame's webcam and the stream on
 top, the touch desktop below.
