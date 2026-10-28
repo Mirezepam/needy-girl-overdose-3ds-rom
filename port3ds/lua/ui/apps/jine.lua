@@ -118,7 +118,7 @@ function M.draw(win, x0, y0, w0, h0)
   local panelH = 0
   if nOpt > 0 then panelH = nOpt * 30 + 4
   elseif status == "FreeForm" then panelH = 30
-  elseif status == "Stamp" then panelH = stampsOpen and 58 or 22 end
+  elseif status == "Stamp" or status == "ChooseAction" then panelH = stampsOpen and 58 or 22 end
   panelH = math.min(panelH, h - 30)
   local lh = h - panelH
   -- history
@@ -178,7 +178,7 @@ function M.draw(win, x0, y0, w0, h0)
     if T.button("jfree", x + 4, py + 3, w - 8, 24, "✎ Escribir…", { fill = c.pi }) then
       core.keyboard("JINE", 60, function(s) if s and s ~= "" then JineManager:EndMessage(s) end end)
     end
-  elseif status == "Stamp" then
+  elseif status == "Stamp" or status == "ChooseAction" then
     if stampsOpen then
       for i, st in ipairs(USER_STAMPS) do
         local col, row = (i - 1) % 4, math.floor((i - 1) / 4)

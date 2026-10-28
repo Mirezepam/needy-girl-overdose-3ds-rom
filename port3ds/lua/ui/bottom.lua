@@ -61,7 +61,11 @@ local MENU_LABEL = { darkness = "Window_Darkness", internet = "Window_Internet",
 
 function M.update(dt)
   if not StatusManager.statuses then return end
-  if I.pressed(K.START) then paused = not paused end
+  -- TaskbarManager.DisInteractive: the whole taskbar (start button, shortcuts, window buttons)
+  -- ignores input and the start menu closes; START / X / Y / L / R are its button equivalents
+  local tbOn = TaskbarManager.interactive ~= false
+  if not tbOn then paused = false end
+  if tbOn and I.pressed(K.START) then paused = not paused end
   -- SELECT toggles "skip text" (inside a stream SELECT skips the broadcast instead)
   local f0 = WindowManager.focusBottom
   if I.pressed(K.SELECT) and not (f0 and f0.kind == "live") then core.fast = not core.fast end
@@ -72,15 +76,15 @@ function M.update(dt)
   end
   if paused then return end   -- (start menu open)
   local wm = WindowManager
-  if I.pressed(K.Y) then wm:NewWindow_2("Jine") end
-  if I.pressed(K.X) then wm:NewWindow_2("Poketter") end
+  if tbOn and I.pressed(K.Y) then wm:NewWindow_2("Jine") end
+  if tbOn and I.pressed(K.X) then wm:NewWindow_2("Poketter") end
   local f = wm.focusBottom
   if I.pressed(K.B) and f and f.closeable and not rawget(f, "modal") then
     local mod = app_module(f.kind)
     if not (mod and mod.back and mod.back(f)) then wm:Close(f) end
   end
   -- L/R cycle through open bottom apps (the stream uses R for speed instead)
-  if not (f and f.kind == "live") and (I.pressed(K.L) or I.pressed(K.R)) then
+  if tbOn and not (f and f.kind == "live") and (I.pressed(K.L) or I.pressed(K.R)) then
     local list = {}
     for _, w in EACH(wm.windows) do if w.screen == "bottom" or w.screen == "both" then list[#list + 1] = w end end
     if #list > 0 then
@@ -577,7 +581,8 @@ local function draw_taskbar()
   slw = math.min(46, slw)
   G.text(sl, math.floor(44 - slw / 2), TB_Y + 5 + (pressed and 1 or 0), c.ink, 1, 48, 1)
   if I.focusable("start", 1, TB_Y + 2, 68, 16) then T.focus_ring(1, TB_Y + 2, 68, 16) end
-  if I.tapped(1, TB_Y, 70, 20) or I.activated("start") then paused = true; if T.click_se then T.click_se() end end
+  local tbOn = TaskbarManager.interactive ~= false
+  if tbOn and (I.tapped(1, TB_Y, 70, 20) or I.activated("start")) then paused = true; if T.click_se then T.click_se() end end
   -- quick shortcuts (AmechanShortcut / PoketterShortcut / JineShortcut / TaskManagerShortcut)
   local QS = { { "icon_taskbar_jine", "Jine" }, { "icon_taskbar_poketter", "Poketter" }, { "icon_taskbar_taskmanager", "TaskManager" } }
   for i, q in ipairs(QS) do
@@ -587,7 +592,7 @@ local function draw_taskbar()
     if I.touching_in(qx, TB_Y + 2, 15, 16) then G.rect(qx, TB_Y + 2, 15, 16, 0x4d22cf30) end
     G.draw(q[1], qx + 1, TB_Y + 4, { fit = { 12, 12 } })
     if I.focusable("qs" .. i, qx, TB_Y + 2, 15, 16) then T.focus_ring(qx, TB_Y + 2, 15, 16) end
-    if I.tapped(qx, TB_Y, 16, 20) or I.activated("qs" .. i) then WindowManager:NewWindow_2(q[2]) end
+    if tbOn and (I.tapped(qx, TB_Y, 16, 20) or I.activated("qs" .. i)) then WindowManager:NewWindow_2(q[2]) end
     ::next_qs::
   end
   -- day button
@@ -606,7 +611,7 @@ local function draw_taskbar()
       local active = WindowManager.focusBottom == w
       local mod = app_module(w.kind)
       local icon = mod and mod.icon or "windowbase_icon"
-      if T.button("tb_" .. w.app, x, TB_Y + 2, 24, 16, "", { icon = icon, iconSize = 12, iconX = 6, flat = true, fill = active and c.white or 0xe6dcf5ff }) then
+      if T.button("tb_" .. w.app, x, TB_Y + 2, 24, 16, "", { icon = icon, iconSize = 12, iconX = 6, flat = true, fill = active and c.white or 0xe6dcf5ff }) and tbOn then
         if active and w.closeable then WindowManager:MinifyApp(w.app) else WindowManager:Touched(w) end
       end
       x = x + 25

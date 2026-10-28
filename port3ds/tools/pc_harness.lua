@@ -390,7 +390,8 @@ local function uibot()
   -- watchdog: day, part and event state must keep changing
   local sig = StatusManager:GetStatus("DayIndex") .. "/" .. StatusManager:GetStatus("DayPart") .. "/" .. tostring(EventManager.isEventing)
     .. "/" .. tostring(StatusManager.Moved.Value) .. "/" .. EventManager.eventQueue.Count
-  if sig ~= ub.sig then ub.sig, ub.since = sig, frame end
+  if sig ~= ub.sig then ub.sig, ub.since, ub.tried = sig, frame, {} end
+  ub.tried = ub.tried or {}
   if frame - ub.since > 7200 then
     ub.stucks = ub.stucks + 1
     local ids = {}
@@ -406,7 +407,8 @@ local function uibot()
   local cands = {}
   for _, f in ipairs(list) do
     local cx, cy = f.x + f.w / 2, f.y + f.h / 2
-    if not UB_AVOID[f.id] and not (UB_SKIP and UB_SKIP[f.id]) and not f.id:match("^p_") and not f.id:match("^cp") and cx >= 0 and cx < 320 and cy >= 0 and cy < 240 then
+    -- a tap that keeps doing nothing (a used stream topic...) is dropped until the state moves
+    if (ub.tried[f.id] or 0) < 6 and not UB_AVOID[f.id] and not (UB_SKIP and UB_SKIP[f.id]) and not f.id:match("^p_") and not f.id:match("^cp") and cx >= 0 and cx < 320 and cy >= 0 and cy < 240 then
       cands[#cands + 1] = f
     end
   end
@@ -418,6 +420,7 @@ local function uibot()
     for _, f in ipairs(cands) do
       if f.id == "desk_live" or (f.id:match("^neta_start") or f.id:match("^chip")) then
         tap(f.x + f.w / 2, f.y + f.h / 2); ub.taps[f.id] = (ub.taps[f.id] or 0) + 1
+        ub.tried[f.id] = (ub.tried[f.id] or 0) + 1
         if os.getenv("NGO_UIBOT_V") then print("  [ui] tap", f.id, sig) end
         return
       end
@@ -430,6 +433,7 @@ local function uibot()
       local f = m[math.random(#m)]
       tap(f.x + f.w / 2, f.y + f.h / 2)
       ub.taps[f.id] = (ub.taps[f.id] or 0) + 1
+      ub.tried[f.id] = (ub.tried[f.id] or 0) + 1
       if os.getenv("NGO_UIBOT_V") then print("  [ui] tap", f.id, sig) end
       return
     end
