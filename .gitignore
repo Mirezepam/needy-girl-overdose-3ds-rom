@@ -18,3 +18,12 @@ __pycache__/
 port3ds/tools/cia_bin/
 port3ds/*.cia
 port3ds/cia/build/
+
+# Generated from your own copy of the game (cs2lua, tools/*.py) — not distributed
+port3ds/lua/gen/
+port3ds/lua/enums.lua
+port3ds/lua/schemas.lua
+port3ds/lua/ui/apps/ending_static.lua
+port3ds/lua/ui/app_titles.lua
+port3ds/docs/event_catalog.json
+port3ds/icon.png

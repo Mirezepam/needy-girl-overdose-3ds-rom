@@ -14,7 +14,8 @@ desktop. Texts are available in Spanish, English and Japanese.
 - **C engine** (`source/`): citro2d rendering on both screens, touch and buttons, NDSP audio (Ogg
   streaming for music, cached PCM for sound effects), ETC1 + LZ4 video playback, and an embedded
   Lua 5.4 interpreter.
-- **Game logic** (`lua/gen/`): the original C# scripts translated to Lua by `tools/cs2lua`.
+- **Game logic** (`lua/gen/`): the original C# scripts translated to Lua by `tools/cs2lua`. It is not
+  in the repository: you generate it from your own copy of the game (see below).
 - **Runtime and overrides** (`lua/runtime/`, `lua/override/`): a small Unity-like runtime
   (coroutines, timers, reactive properties, saves) and hand-written replacements for the Unity
   classes that are tied to the original UI (windows, audio, live stream, effects).
